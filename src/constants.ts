@@ -10,8 +10,8 @@ export const EVENT_DISCRIMINATOR_LEN = 9;
 
 //Event discriminator values
 export const EventDiscriminators = {
-    SubscriptionEvent: 0,
-    SubcriptionCancelled: 1,
+    SubscriptionCreated: 0,
+    SubscriptionCancelled: 1,
     SubscriptionTransfer: 2,
     FixedTransfer: 3,
     RecurringTransfer: 4,

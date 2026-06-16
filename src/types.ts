@@ -5,7 +5,7 @@ export interface SubscriptionCreatedEvent {
     plan: Address;
     subscriber: Address;
     mint: Address;
-    createdTS: bigint;
+    createdTs: bigint;
 }
 
 export interface SubscriptionCancelledEvent {
@@ -57,7 +57,7 @@ export interface SubscriptionResumedEvent {
     type: "SubscriptionResumed";
     plan: Address;
     subscriber: Address;
-    resumedTS: bigint;
+    resumedTs: bigint;
 }
 
 export type CatalystEvent =
