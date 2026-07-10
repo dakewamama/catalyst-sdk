@@ -12,12 +12,12 @@ function readAddress(buf: Uint8Array, offset: number): string {
 }
 
 function readI64(buf: Uint8Array, offset: number): bigint {
-    const view = new DataView(buf.buffer, buf.byteOffset);
+    const view = new DataView(buf.buffer, buf.byteOffset + offset, 8);
     return view.getBigInt64(0, true);
 }
 
 function readU64(buf: Uint8Array, offset: number): bigint {
-    const view = new DataView(buf.buffer, buf.byteOffset);
+    const view = new DataView(buf.buffer, buf.byteOffset + offset, 8);
     return view.getBigUint64(0, true);
 }
 
