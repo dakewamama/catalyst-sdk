@@ -27,8 +27,6 @@ pub struct SourceRequirements {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActionKind {
     Revoke,
-    Suspend,
-    Resume,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
