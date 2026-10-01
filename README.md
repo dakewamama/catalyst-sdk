@@ -37,9 +37,36 @@ ARM is pinned to its committed Git revision. Its domain model is reused directly
 parallel semantic model is maintained here. Solana instruction/public-key dependencies
 are pinned; adapter native clients must use compatible versions.
 
-Verified reuse boundaries and the outstanding native type-version check are recorded in
+Verified reuse boundaries and the native compatibility proof are recorded in
 [REUSE_BOUNDARIES.md](docs/research/REUSE_BOUNDARIES.md). Suspend and Resume have no native
 implementation yet and are not exposed as action kinds.
+
+## SPL delegate slice
+
+spl::DelegateAdapter interprets classic SPL token account delegate Spend authority.
+State retains native account observations; the runtime binds owner/delegate observations
+to the keys returned by source_requirements and retains their evidence. Official Pack
+decodes state and the official revoke builder constructs instructions. The owner revoke
+action requires an observed ordinary system account; multisig/program-controlled owners
+are unsupported for actions. Multisig/program-controlled delegates are unsupported for
+interpretation until their principal semantics are implemented.
+
+Support is limited to the exact ELF digest and local deployment named by spl constants.
+The ELF comes from Mollusk's pinned token fixture crate, not a live deployment lookup.
+Cataloger must establish live deployment coverage before this adapter can advertise it.
+Unknown versions fail before decoding. Do not relabel a live observation as this fixture.
+
+The checked-in raw state is reproduced by native Approve execution and has a complete
+ARM golden. Mollusk executes Revoke; recompilation removes the authorization and agrees
+with its declared Diff. Native Transfer rejects an amount above the delegated allowance
+and consumes that allowance. Frozen state is suspended, zero allowance is inactive, and
+native unsigned/wrong-owner/frozen revoke failures leave state unchanged.
+
+This is a delegate projection, not complete account coverage. Owner, mint, freeze, close,
+Burn and Token-2022 semantics are not projected yet. Spend and Burn share the native
+delegated allowance; this adapter emits only Spend and never adds their budgets together.
+Remaining allowance does not promise available balance or transaction success. Declared
+Diff supports exactly one canonical owner Revoke; other instructions return Unsupported.
 
 ## Checks
 

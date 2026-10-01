@@ -4,6 +4,8 @@ use arm::{Authorization, AuthorizationChange, EvidenceBundle, NativeContext};
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
 
+pub mod spl;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Protocol {
     pub name: &'static str,
