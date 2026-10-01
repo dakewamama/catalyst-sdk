@@ -8,6 +8,8 @@
   source evidence, valid ARM projection and stable change identity.
 - Existing TypeScript event API retained; it is not the semantic ARM API.
 - Test adapter is synthetic ABI evidence, not a supported native protocol.
+- Minimality audit removed unused Suspend/Resume action variants; only Revoke remains.
+- Official token interface source/tests inspected and reuse boundaries recorded.
 
 ## Test status
 
@@ -18,10 +20,11 @@
 
 ## Real blockers
 
-- Separate indexer checkout and architecture book remain unidentified.
+- None for this audit. Native type compatibility is the next correctness check.
 
 ## Next critical path
 
-- Verify Cataloger repository identity and implement deterministic resolver after ABI push.
+- Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
+- Next: type compatibility proof, official token state fixtures and revoke round trip.
 - SUB-0 locked until SPL native fixtures and revoke round trip are verified and pushed.
 - Do not commit the pre-existing untracked package-lock.json.

@@ -37,6 +37,10 @@ ARM is pinned to its committed Git revision. Its domain model is reused directly
 parallel semantic model is maintained here. Solana instruction/public-key dependencies
 are pinned; adapter native clients must use compatible versions.
 
+Verified reuse boundaries and the outstanding native type-version check are recorded in
+[REUSE_BOUNDARIES.md](docs/research/REUSE_BOUNDARIES.md). Suspend and Resume have no native
+implementation yet and are not exposed as action kinds.
+
 ## Checks
 
 ```sh
