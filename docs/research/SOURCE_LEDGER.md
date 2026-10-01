@@ -3,9 +3,9 @@
 ## Native instruction types
 
 - Source: solana-sdk crates, https://github.com/anza-xyz/solana-sdk.
-- Versions: solana-instruction 2.3.3 and solana-pubkey 2.4.0, exact Cargo pins/lockfile.
-- Published source commits: instruction `f6cd41ac1e4a45d4a94f62d6abcaecb202c51cfa`,
-  pubkey `483720e23010213a2d611ea1295bd72b3fd98979` (crate .cargo_vcs_info.json).
+- Versions: solana-instruction 3.4.0 and solana-pubkey 4.2.0, exact Cargo pins/lockfile.
+- Published source commits: instruction `1d4d322b9eac89e6c8069464e0c184d72584106c`,
+  pubkey `5b985fd7b60de1c845c25bb2d4fc16e19c9ee6ab` (crate .cargo_vcs_info.json).
 - License: Apache-2.0, verified from published crate manifests.
 - Inspection: TARGETED SOURCE, published instruction fields, AccountMeta signer/writable
   requirements and new_with_bytes constructor; dependencies executed through ABI tests.
@@ -35,9 +35,30 @@
 - Experience: use public Pack APIs and native builders. Base unpacking leaves TLV lazy;
   a helper using get_extension().ok() loses malformed-versus-absent information.
 - Reuse: DEPEND for typed decoding; PUBLIC API for native builders. No source copied.
-- Compatibility: published interfaces use Solana 3.x instructions. Current project
-  instruction/key pins are 2.x; local compatibility proof is still required.
-- Excluded claims: no deployed-version match, no supported adapter, no executed revoke.
+- Compatibility: both interfaces compiled with instruction 3.4.0/pubkey 4.2.0 in an
+  isolated proof. Upstream solana-address 1.1.0 re-exports Address 2.x; type equality
+  was checked by assignments and native instruction return types, without conversion.
+- Classic interface now EXECUTED LOCALLY through Approve, Transfer and Revoke fixtures.
+- Token-2022 interpretation and live deployed-version matching remain unverified.
+
+## Native classic token fixture
+
+- Source: https://github.com/anza-xyz/mollusk, published mollusk-svm and
+  mollusk-svm-programs-token 0.15.1, commit f432ef136ee9779d2a814ebf2b80f44c10607255.
+- License: Apache-2.0, verified from the published LICENSE files (manifest uses license-file).
+- Inspection: EXECUTED LOCALLY. Read token helper APIs, update script, loader setup,
+  process_instruction and result account/error types. Upstream fixture notes capture
+  mainnet-beta slot 347196212; that note does not establish current chain coverage.
+- Token ELF SHA256: 8190d3f7ceb6cb7a7a8d8924bff89f9f611e15ce1f806f2b6237f3311a98f697.
+  Test asserts the digest before golden compilation. Only the named local fixture
+  deployment is supported; the catalog still contains no live deployment records.
+- Native source checked: spl-token 9.0.0 processor.rs transfer, approve, revoke,
+  validate_owner; interface state Pack/layout and revoke/approve/transfer builders.
+- Experience: signature checks happen in the native processor; frozen Revoke fails;
+  the allowance is cumulative and native consumption clears delegation at zero.
+- Reuse: DEPEND/PUBLIC API for fixture ELF loading and instruction execution. No source
+  code copied. Upstream fixture lockfile was a resolution seed; the project lockfile
+  retains only its own dependency graph. No program crate is a runtime dependency.
 
 ## Historical program source comparison
 

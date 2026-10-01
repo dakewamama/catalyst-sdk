@@ -9,22 +9,28 @@
 - Existing TypeScript event API retained; it is not the semantic ARM API.
 - Test adapter is synthetic ABI evidence, not a supported native protocol.
 - Minimality audit removed unused Suspend/Resume action variants; only Revoke remains.
-- Official token interface source/tests inspected and reuse boundaries recorded.
+- Official token interfaces and harness compatibility compiled with native types.
+- Classic SPL delegate Spend projection, native owner Revoke action and canonical
+  declared removal implemented. Only exact local fixture deployment is supported.
+- Golden raw bytes reproduced by native Approve; native Transfer enforces/consumes
+  allowance; native Revoke round trip recompiles to no delegate authority.
 
 ## Test status
 
 - Baseline SDK: 3 Bun tests and TypeScript check passed.
 - Rust ABI: determinism, requirements, version/program mismatch, evidence propagation,
   malformed/duplicate output, stale action evidence and declared action changes.
-- Rust fmt/strict Clippy pass; 6 ABI tests pass. Existing Bun tests/typecheck pass.
+- Rust fmt/strict Clippy pass; 6 ABI and 8 native SPL tests pass. Bun/typecheck pass.
 
 ## Real blockers
 
-- None for this audit. Native type compatibility is the next correctness check.
+- None for the delegate slice. No live deployment coverage has been established.
 
 ## Next critical path
 
 - Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- Next: type compatibility proof, official token state fixtures and revoke round trip.
+- Next: mint/freeze/close authority fixtures, then Token-2022 extension interpretation.
+- Multisig and program-controlled delegate principals remain unsupported, as do their
+  revoke controllers. Current output is explicitly partial protocol coverage.
 - SUB-0 locked until SPL native fixtures and revoke round trip are verified and pushed.
 - Do not commit the pre-existing untracked package-lock.json.
