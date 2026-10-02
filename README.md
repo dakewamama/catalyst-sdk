@@ -62,11 +62,28 @@ with its declared Diff. Native Transfer rejects an amount above the delegated al
 and consumes that allowance. Frozen state is suspended, zero allowance is inactive, and
 native unsigned/wrong-owner/frozen revoke failures leave state unchanged.
 
-This is a delegate projection, not complete account coverage. Owner, mint, freeze, close,
+This is a delegate projection, not complete account coverage. Owner, close,
 Burn and Token-2022 semantics are not projected yet. Spend and Burn share the native
 delegated allowance; this adapter emits only Spend and never adds their budgets together.
 Remaining allowance does not promise available balance or transaction success. Declared
 Diff supports exactly one canonical owner Revoke; other instructions return Unsupported.
+
+MintAdapter consumes MintState observations for the same verified classic program.
+It projects Mint on the mint resource and administrative Freeze/Thaw on that mint's
+token accounts. It does not infer a human owner from mint state. Native authority
+accounts must be supplied by key; missing, duplicate, multisig or program-owned
+observations fail closed. These are separate native powers, not Spend permissions.
+
+Mint actions use official SetAuthority instructions to clear the selected authority.
+Clearing mint authority permanently fixes supply against further minting; clearing
+freeze authority permanently removes both Freeze and Thaw, including the ability to
+thaw existing frozen accounts. Native execution proves neither authority can be restored
+after clearing. The SDK builds these actions; it does not submit them. Each declared
+Diff must match one canonical removal instruction and retains the removed evidence.
+
+The raw mint golden is reproduced by native InitializeMint2 and MintTo. Native tests
+verify supply/balance changes, freeze/thaw effects on the existing delegate projection,
+signature/controller failures, removal/recompilation agreement and irreversible removal.
 
 ## Checks
 

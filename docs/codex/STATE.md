@@ -14,13 +14,18 @@
   declared removal implemented. Only exact local fixture deployment is supported.
 - Golden raw bytes reproduced by native Approve; native Transfer enforces/consumes
   allowance; native Revoke round trip recompiles to no delegate authority.
+- Classic Mint/Freeze/Thaw projection and native authority removal actions implemented.
+  Freeze/Thaw are administrative powers on a mint's token accounts. ARM is unchanged.
+- Native InitializeMint2/MintTo reproduce both mint and token golden bytes; clearing
+  mint/freeze authority round-trips, preserves unrelated authority and cannot be restored.
 
 ## Test status
 
 - Baseline SDK: 3 Bun tests and TypeScript check passed.
 - Rust ABI: determinism, requirements, version/program mismatch, evidence propagation,
   malformed/duplicate output, stale action evidence and declared action changes.
-- Rust fmt/strict Clippy pass; 6 ABI and 8 native SPL tests pass. Bun/typecheck pass.
+- Rust fmt/strict Clippy pass; 6 ABI, 8 delegate and 8 mint native tests pass.
+- Existing 3 Bun tests and TypeScript check pass.
 
 ## Real blockers
 
@@ -29,7 +34,7 @@
 ## Next critical path
 
 - Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- Next: mint/freeze/close authority fixtures, then Token-2022 extension interpretation.
+- Next: classic close authority fixtures, then Token-2022 extension interpretation.
 - Multisig and program-controlled delegate principals remain unsupported, as do their
   revoke controllers. Current output is explicitly partial protocol coverage.
 - SUB-0 locked until SPL native fixtures and revoke round trip are verified and pushed.

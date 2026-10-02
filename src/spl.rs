@@ -4,13 +4,208 @@ use solana_account::Account;
 use solana_instruction::Instruction;
 use solana_program_pack::Pack;
 use solana_pubkey::Pubkey;
-use spl_token_interface::{instruction, state::Account as TokenAccount};
+use spl_token_interface::{
+    instruction,
+    state::{Account as TokenAccount, Mint},
+};
 
 pub const PROGRAM_VERSION: &str =
     "sha256:8190d3f7ceb6cb7a7a8d8924bff89f9f611e15ce1f806f2b6237f3311a98f697";
 pub const DEPLOYMENT: &str = "fixture:mollusk:token:0.15.1";
 
 pub struct DelegateAdapter;
+
+pub struct MintAdapter;
+
+pub struct MintState {
+    pub address: Pubkey,
+    pub account: Account,
+    pub authorities: Vec<(Pubkey, Account)>,
+}
+
+fn decode_mint(state: &MintState) -> Result<Mint, Error> {
+    if state.account.owner != spl_token_interface::id() || state.account.executable {
+        return Err(Error::InvalidState("mint program owner".into()));
+    }
+    Mint::unpack(&state.account.data).map_err(|error| Error::InvalidState(error.to_string()))
+}
+
+fn check_mint_authority(state: &MintState, key: Pubkey) -> Result<(), Error> {
+    let mut observations = state
+        .authorities
+        .iter()
+        .filter(|(address, _)| *address == key);
+    let (_, account) = observations.next().ok_or(Error::InsufficientEvidence)?;
+    if observations.next().is_some() {
+        return Err(Error::InvalidState(
+            "duplicate authority observation".into(),
+        ));
+    }
+    if account.owner != Pubkey::default() || !account.data.is_empty() || account.executable {
+        return Err(Error::UnsupportedOperation);
+    }
+    Ok(())
+}
+
+fn remove_mint_authority(
+    state: &MintState,
+    mint: &Mint,
+    capability: &Capability,
+) -> Result<Instruction, Error> {
+    let (authority_type, authority) = match capability {
+        Capability::Mint => (instruction::AuthorityType::MintTokens, mint.mint_authority),
+        Capability::Freeze | Capability::Thaw => (
+            instruction::AuthorityType::FreezeAccount,
+            mint.freeze_authority,
+        ),
+        _ => return Err(Error::UnsupportedOperation),
+    };
+    let authority = Option::<Pubkey>::from(authority).ok_or(Error::UnsupportedOperation)?;
+    check_mint_authority(state, authority)?;
+    instruction::set_authority(
+        &spl_token_interface::id(),
+        &state.address,
+        None,
+        authority_type,
+        &authority,
+        &[],
+    )
+    .map_err(|error| Error::InvalidState(error.to_string()))
+}
+
+impl Adapter for MintAdapter {
+    type State = MintState;
+
+    fn protocol(&self) -> Protocol {
+        DelegateAdapter.protocol()
+    }
+
+    fn supports(&self, native: &NativeContext) -> bool {
+        DelegateAdapter.supports(native)
+    }
+
+    fn source_requirements(&self, state: &MintState) -> SourceRequirements {
+        let mut accounts = vec![state.address];
+        if let Ok(mint) = decode_mint(state) {
+            for key in [
+                Option::<Pubkey>::from(mint.mint_authority),
+                Option::<Pubkey>::from(mint.freeze_authority),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if !accounts.contains(&key) {
+                    accounts.push(key);
+                }
+            }
+        }
+        SourceRequirements {
+            accounts,
+            clock: false,
+        }
+    }
+
+    fn compile_state(
+        &self,
+        state: &MintState,
+        context: &Context,
+    ) -> Result<Vec<Authorization>, Error> {
+        let mint = decode_mint(state)?;
+        let resource = Resource {
+            namespace: "solana:mint".into(),
+            id: state.address.to_string(),
+        };
+        let mut authorizations = Vec::new();
+        for (role, capability, authority) in [
+            ("mint", Capability::Mint, mint.mint_authority),
+            ("freeze", Capability::Freeze, mint.freeze_authority),
+            ("thaw", Capability::Thaw, mint.freeze_authority),
+        ] {
+            let Some(authority) = Option::<Pubkey>::from(authority) else {
+                continue;
+            };
+            check_mint_authority(state, authority)?;
+            let administrative = capability != Capability::Mint;
+            authorizations.push(Authorization {
+                schema_version: SCHEMA_VERSION.into(),
+                id: format!("{}:{}:{role}", context.program_id, state.address),
+                subject: Subject::Resource(resource.clone()),
+                principal: Principal::Identity(authority.to_string()),
+                resource: if administrative {
+                    Resource {
+                        namespace: "solana:mint-token-accounts".into(),
+                        id: state.address.to_string(),
+                    }
+                } else {
+                    resource.clone()
+                },
+                capability,
+                constraints: ConstraintExpr::True,
+                usage: UsageSemantics::Unlimited,
+                lifecycle: Lifecycle::Active {
+                    valid_from: None,
+                    valid_until: None,
+                },
+                delegability: Delegability::Unknown,
+                authority_kind: if administrative {
+                    AuthorityKind::Administrative
+                } else {
+                    AuthorityKind::Direct
+                },
+                enforcement: Enforcement::Native,
+                observability: Observability::Exact,
+                evidence: context.evidence.clone(),
+                native_context: context.native.clone(),
+            });
+        }
+        Ok(authorizations)
+    }
+
+    fn diff_transaction(
+        &self,
+        instructions: &[Instruction],
+        state: &MintState,
+        context: &Context,
+    ) -> Result<Vec<AuthorizationChange>, Error> {
+        if instructions.len() != 1 {
+            return Err(Error::UnsupportedOperation);
+        }
+        let mint = decode_mint(state)?;
+        let before = self.compile_state(state, context)?;
+        let mut changes = Vec::new();
+        for authorization in before {
+            if remove_mint_authority(state, &mint, &authorization.capability)? == instructions[0] {
+                changes.push(AuthorizationChange::Removed {
+                    authorization: Box::new(authorization),
+                });
+            }
+        }
+        if changes.is_empty() {
+            return Err(Error::UnsupportedOperation);
+        }
+        Ok(changes)
+    }
+
+    fn actions(
+        &self,
+        authorization: &Authorization,
+        state: &MintState,
+        context: &Context,
+    ) -> Result<Vec<Action>, Error> {
+        if !self.compile_state(state, context)?.contains(authorization) {
+            return Err(Error::InvalidProjection);
+        }
+        Ok(vec![Action {
+            kind: ActionKind::Revoke,
+            authorization_id: authorization.id.clone(),
+            instructions: vec![remove_mint_authority(
+                state,
+                &decode_mint(state)?,
+                &authorization.capability,
+            )?],
+        }])
+    }
+}
 
 pub struct State {
     pub address: Pubkey,

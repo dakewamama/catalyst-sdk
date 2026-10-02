@@ -59,6 +59,13 @@
 - Reuse: DEPEND/PUBLIC API for fixture ELF loading and instruction execution. No source
   code copied. Upstream fixture lockfile was a resolution seed; the project lockfile
   retains only its own dependency graph. No program crate is a runtime dependency.
+- Further executed evidence: InitializeMint2 + MintTo reproduce mint/token golden bytes;
+  MintTo changes supply and balance; Freeze/Thaw change delegate availability; canonical
+  SetAuthority removals agree with recompilation, including both Freeze/Thaw removals.
+- Additional TARGETED SOURCE: spl-token 9.0.0 process_set_authority, process_mint_to,
+  process_toggle_freeze_account and official set_authority builder. Source comments
+  explain why clearing mint/freeze authority is irreversible. Native fixture verifies
+  restore attempts fail without changing state. No source copied.
 
 ## Historical program source comparison
 
