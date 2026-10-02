@@ -170,7 +170,7 @@ fn decode_mint(state: &AuthorityState) -> Result<Mint, Error> {
     Mint::unpack(&state.account.data).map_err(|error| Error::InvalidState(error.to_string()))
 }
 
-fn check_authority(state: &AuthorityState, key: Pubkey) -> Result<(), Error> {
+pub(crate) fn check_authority(state: &AuthorityState, key: Pubkey) -> Result<(), Error> {
     let mut observations = state
         .authorities
         .iter()
