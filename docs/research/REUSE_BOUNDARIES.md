@@ -31,8 +31,9 @@ to None must not become an exact absence claim.
 
 The ABI remains small: one required adapter trait, native state owned by each adapter,
 checked dispatch and native instruction output. It has no decoder registry, intent
-compiler, signer, policy engine or RPC framework. Only Revoke is advertised as an action
-kind; other actions require a real native target before being added.
+compiler, signer, policy engine or RPC framework. Revoke and ResetAuthority are backed
+by native fixtures. ResetAuthority clears explicit SPL close authority, restoring its
+owner fallback; describing it as Revoke would incorrectly claim Close permission ended.
 
 Ingestion, developer clients and execution infrastructure remain behind their existing
 source gates. No dependency decision for those layers is established by this audit.

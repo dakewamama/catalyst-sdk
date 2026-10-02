@@ -62,13 +62,13 @@ with its declared Diff. Native Transfer rejects an amount above the delegated al
 and consumes that allowance. Frozen state is suspended, zero allowance is inactive, and
 native unsigned/wrong-owner/frozen revoke failures leave state unchanged.
 
-This is a delegate projection, not complete account coverage. Owner, close,
+This is a delegate projection, not complete account coverage. Owner,
 Burn and Token-2022 semantics are not projected yet. Spend and Burn share the native
 delegated allowance; this adapter emits only Spend and never adds their budgets together.
 Remaining allowance does not promise available balance or transaction success. Declared
 Diff supports exactly one canonical owner Revoke; other instructions return Unsupported.
 
-MintAdapter consumes MintState observations for the same verified classic program.
+MintAdapter consumes AuthorityState observations for the same verified classic program.
 It projects Mint on the mint resource and administrative Freeze/Thaw on that mint's
 token accounts. It does not infer a human owner from mint state. Native authority
 accounts must be supplied by key; missing, duplicate, multisig or program-owned
@@ -84,6 +84,22 @@ Diff must match one canonical removal instruction and retains the removed eviden
 The raw mint golden is reproduced by native InitializeMint2 and MintTo. Native tests
 verify supply/balance changes, freeze/thaw effects on the existing delegate projection,
 signature/controller failures, removal/recompilation agreement and irreversible removal.
+
+CloseAdapter shares AuthorityState's keyed native observations with MintAdapter.
+It projects explicit close authority, or the token account owner when the native close
+authority is absent. Clearing an explicit close authority restores the owner; it does
+not remove Close permission. That action is ResetAuthority, and its declared Diff is
+Changed, or empty when the effective principal already equals the owner. Missing
+fallback-owner evidence prevents proposing or declaring the reset.
+
+Close is technical authority, not a guarantee of transaction success: ordinary token
+accounts must have zero token balance; wrapped SOL can close with a balance. Frozen
+empty accounts can close, but their close authority cannot be reset until thawed.
+These distinctions are verified by native execution. System/incinerator token ownership
+and multisig/program-owned controllers remain unsupported. Native CloseAccount simulation
+returns lamports to an explicitly selected beneficiary and re-observation of the deleted
+account yields no Close authorization. The SDK does not propose a beneficiary or submit
+a Close transaction from observed state; human destination intent is not inferred.
 
 ## Checks
 
