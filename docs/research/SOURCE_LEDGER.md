@@ -66,6 +66,18 @@
   process_toggle_freeze_account and official set_authority builder. Source comments
   explain why clearing mint/freeze authority is irreversible. Native fixture verifies
   restore attempts fail without changing state. No source copied.
+- Close authority study: official process_close_account, process_set_authority
+  CloseAccount branch, is_owned_by_system_program_or_incinerator, and close_account
+  builder. TARGETED SOURCE plus EXECUTED LOCALLY against the same hashed ELF.
+- Executable facts: absent explicit closer falls back to token owner; clearing it changes
+  the current principal instead of deleting Close permission; frozen empty accounts close
+  even though frozen authority reset fails; nonempty ordinary accounts fail to close;
+  native InitializeAccount3 creates wrapped SOL that closes with a nonzero balance.
+- Native closure returns lamports to the selected recipient, removes account data and
+  owner, and recompiles to no Close authority. Same-owner reset has no current semantic
+  delta. Source/recipient alias, missing signature and wrong controller fail unchanged.
+- Reuse: official Pack/state methods, SetAuthority/CloseAccount/InitializeAccount3 public
+  APIs and Mollusk execution. No source copied; no balance predicate invented in ARM.
 
 ## Historical program source comparison
 

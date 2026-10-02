@@ -8,7 +8,8 @@
   source evidence, valid ARM projection and stable change identity.
 - Existing TypeScript event API retained; it is not the semantic ARM API.
 - Test adapter is synthetic ABI evidence, not a supported native protocol.
-- Minimality audit removed unused Suspend/Resume action variants; only Revoke remains.
+- Minimality audit removed unused Suspend/Resume variants. Revoke and ResetAuthority
+  now have verified native targets; no speculative action kinds were added.
 - Official token interfaces and harness compatibility compiled with native types.
 - Classic SPL delegate Spend projection, native owner Revoke action and canonical
   declared removal implemented. Only exact local fixture deployment is supported.
@@ -18,13 +19,18 @@
   Freeze/Thaw are administrative powers on a mint's token accounts. ARM is unchanged.
 - Native InitializeMint2/MintTo reproduce both mint and token golden bytes; clearing
   mint/freeze authority round-trips, preserves unrelated authority and cannot be restored.
+- Close authority projection and native explicit-closer reset complete. Reset restores
+  the owner fallback; Diff is Changed, not Removed. Mint and Close use AuthorityState's
+  keyed native observations, with no duplicate observation model or ARM changes.
+- Native CloseAccount fixtures cover rent return, deletion/recompilation, ordinary
+  token balance checks, frozen state, wrapped SOL, signatures and recipient aliasing.
 
 ## Test status
 
 - Baseline SDK: 3 Bun tests and TypeScript check passed.
 - Rust ABI: determinism, requirements, version/program mismatch, evidence propagation,
   malformed/duplicate output, stale action evidence and declared action changes.
-- Rust fmt/strict Clippy pass; 6 ABI, 8 delegate and 8 mint native tests pass.
+- Rust fmt/strict Clippy pass; 6 ABI, 8 delegate, 8 mint and 9 close native tests pass.
 - Existing 3 Bun tests and TypeScript check pass.
 
 ## Real blockers
@@ -34,7 +40,7 @@
 ## Next critical path
 
 - Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- Next: classic close authority fixtures, then Token-2022 extension interpretation.
+- Next: Token-2022 extension interpretation and exact native fixtures.
 - Multisig and program-controlled delegate principals remain unsupported, as do their
   revoke controllers. Current output is explicitly partial protocol coverage.
 - SUB-0 locked until SPL native fixtures and revoke round trip are verified and pushed.

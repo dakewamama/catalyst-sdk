@@ -29,8 +29,8 @@ fn context() -> Context {
     }
 }
 
-fn fixture() -> MintState {
-    MintState {
+fn fixture() -> AuthorityState {
+    AuthorityState {
         address: Pubkey::new_from_array([3; 32]),
         account: Account {
             lamports: 10_000_000,

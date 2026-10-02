@@ -17,20 +17,160 @@ pub struct DelegateAdapter;
 
 pub struct MintAdapter;
 
-pub struct MintState {
+pub struct CloseAdapter;
+
+pub struct AuthorityState {
     pub address: Pubkey,
     pub account: Account,
     pub authorities: Vec<(Pubkey, Account)>,
 }
 
-fn decode_mint(state: &MintState) -> Result<Mint, Error> {
+fn reset_close_authority(state: &AuthorityState) -> Result<Instruction, Error> {
+    let account = decode(&state.account)?;
+    let authority =
+        Option::<Pubkey>::from(account.close_authority).ok_or(Error::UnsupportedOperation)?;
+    if account.is_frozen() || account.is_owned_by_system_program_or_incinerator() {
+        return Err(Error::UnsupportedOperation);
+    }
+    check_authority(state, authority)?;
+    instruction::set_authority(
+        &spl_token_interface::id(),
+        &state.address,
+        None,
+        instruction::AuthorityType::CloseAccount,
+        &authority,
+        &[],
+    )
+    .map_err(|error| Error::InvalidState(error.to_string()))
+}
+
+impl Adapter for CloseAdapter {
+    type State = AuthorityState;
+
+    fn protocol(&self) -> Protocol {
+        DelegateAdapter.protocol()
+    }
+
+    fn supports(&self, native: &NativeContext) -> bool {
+        DelegateAdapter.supports(native)
+    }
+
+    fn source_requirements(&self, state: &AuthorityState) -> SourceRequirements {
+        let mut accounts = vec![state.address];
+        if let Ok(account) = decode(&state.account) {
+            let authority = account.close_authority.unwrap_or(account.owner);
+            for key in [authority, account.owner] {
+                if !accounts.contains(&key) {
+                    accounts.push(key);
+                }
+            }
+        }
+        SourceRequirements {
+            accounts,
+            clock: false,
+        }
+    }
+
+    fn compile_state(
+        &self,
+        state: &AuthorityState,
+        context: &Context,
+    ) -> Result<Vec<Authorization>, Error> {
+        if state.account.owner == Pubkey::default()
+            && !state.account.executable
+            && state.account.lamports == 0
+            && state.account.data.is_empty()
+        {
+            return Ok(vec![]);
+        }
+        let account = decode(&state.account)?;
+        // Native system/incinerator ownership bypasses signer checks and restricts the recipient.
+        if account.is_owned_by_system_program_or_incinerator() {
+            return Err(Error::UnsupportedOperation);
+        }
+        let authority = account.close_authority.unwrap_or(account.owner);
+        check_authority(state, authority)?;
+        let resource = Resource {
+            namespace: "solana:token-account".into(),
+            id: state.address.to_string(),
+        };
+        Ok(vec![Authorization {
+            schema_version: SCHEMA_VERSION.into(),
+            id: format!("{}:{}:close", context.program_id, state.address),
+            subject: Subject::Resource(resource.clone()),
+            principal: Principal::Identity(authority.to_string()),
+            resource,
+            capability: Capability::Close,
+            constraints: ConstraintExpr::True,
+            usage: UsageSemantics::OneShot {
+                consumed: Some(false),
+            },
+            lifecycle: Lifecycle::Active {
+                valid_from: None,
+                valid_until: None,
+            },
+            delegability: Delegability::Unknown,
+            authority_kind: AuthorityKind::Direct,
+            enforcement: Enforcement::Native,
+            observability: Observability::Exact,
+            evidence: context.evidence.clone(),
+            native_context: context.native.clone(),
+        }])
+    }
+
+    fn diff_transaction(
+        &self,
+        instructions: &[Instruction],
+        state: &AuthorityState,
+        context: &Context,
+    ) -> Result<Vec<AuthorizationChange>, Error> {
+        if instructions != [reset_close_authority(state)?] {
+            return Err(Error::UnsupportedOperation);
+        }
+        let before = self.compile_state(state, context)?.remove(0);
+        let account = decode(&state.account)?;
+        check_authority(state, account.owner)?;
+        let mut after = before.clone();
+        after.principal = Principal::Identity(account.owner.to_string());
+        if before == after {
+            return Ok(vec![]);
+        }
+        Ok(vec![AuthorizationChange::Changed {
+            before: Box::new(before),
+            after: Box::new(after),
+        }])
+    }
+
+    fn actions(
+        &self,
+        authorization: &Authorization,
+        state: &AuthorityState,
+        context: &Context,
+    ) -> Result<Vec<Action>, Error> {
+        if !self.compile_state(state, context)?.contains(authorization) {
+            return Err(Error::InvalidProjection);
+        }
+        let account = decode(&state.account)?;
+        if Option::<Pubkey>::from(account.close_authority).is_none() {
+            return Ok(vec![]);
+        }
+        check_authority(state, account.owner)?;
+        Ok(vec![Action {
+            kind: ActionKind::ResetAuthority,
+            authorization_id: authorization.id.clone(),
+            instructions: vec![reset_close_authority(state)?],
+        }])
+    }
+}
+
+fn decode_mint(state: &AuthorityState) -> Result<Mint, Error> {
     if state.account.owner != spl_token_interface::id() || state.account.executable {
         return Err(Error::InvalidState("mint program owner".into()));
     }
     Mint::unpack(&state.account.data).map_err(|error| Error::InvalidState(error.to_string()))
 }
 
-fn check_mint_authority(state: &MintState, key: Pubkey) -> Result<(), Error> {
+fn check_authority(state: &AuthorityState, key: Pubkey) -> Result<(), Error> {
     let mut observations = state
         .authorities
         .iter()
@@ -48,7 +188,7 @@ fn check_mint_authority(state: &MintState, key: Pubkey) -> Result<(), Error> {
 }
 
 fn remove_mint_authority(
-    state: &MintState,
+    state: &AuthorityState,
     mint: &Mint,
     capability: &Capability,
 ) -> Result<Instruction, Error> {
@@ -61,7 +201,7 @@ fn remove_mint_authority(
         _ => return Err(Error::UnsupportedOperation),
     };
     let authority = Option::<Pubkey>::from(authority).ok_or(Error::UnsupportedOperation)?;
-    check_mint_authority(state, authority)?;
+    check_authority(state, authority)?;
     instruction::set_authority(
         &spl_token_interface::id(),
         &state.address,
@@ -74,7 +214,7 @@ fn remove_mint_authority(
 }
 
 impl Adapter for MintAdapter {
-    type State = MintState;
+    type State = AuthorityState;
 
     fn protocol(&self) -> Protocol {
         DelegateAdapter.protocol()
@@ -84,7 +224,7 @@ impl Adapter for MintAdapter {
         DelegateAdapter.supports(native)
     }
 
-    fn source_requirements(&self, state: &MintState) -> SourceRequirements {
+    fn source_requirements(&self, state: &AuthorityState) -> SourceRequirements {
         let mut accounts = vec![state.address];
         if let Ok(mint) = decode_mint(state) {
             for key in [
@@ -107,7 +247,7 @@ impl Adapter for MintAdapter {
 
     fn compile_state(
         &self,
-        state: &MintState,
+        state: &AuthorityState,
         context: &Context,
     ) -> Result<Vec<Authorization>, Error> {
         let mint = decode_mint(state)?;
@@ -124,7 +264,7 @@ impl Adapter for MintAdapter {
             let Some(authority) = Option::<Pubkey>::from(authority) else {
                 continue;
             };
-            check_mint_authority(state, authority)?;
+            check_authority(state, authority)?;
             let administrative = capability != Capability::Mint;
             authorizations.push(Authorization {
                 schema_version: SCHEMA_VERSION.into(),
@@ -164,7 +304,7 @@ impl Adapter for MintAdapter {
     fn diff_transaction(
         &self,
         instructions: &[Instruction],
-        state: &MintState,
+        state: &AuthorityState,
         context: &Context,
     ) -> Result<Vec<AuthorizationChange>, Error> {
         if instructions.len() != 1 {
@@ -189,7 +329,7 @@ impl Adapter for MintAdapter {
     fn actions(
         &self,
         authorization: &Authorization,
-        state: &MintState,
+        state: &AuthorityState,
         context: &Context,
     ) -> Result<Vec<Action>, Error> {
         if !self.compile_state(state, context)?.contains(authorization) {
@@ -215,16 +355,15 @@ pub struct State {
     pub delegate: Account,
 }
 
-fn decode(state: &State) -> Result<TokenAccount, Error> {
-    if state.account.owner != spl_token_interface::id() || state.account.executable {
+fn decode(account: &Account) -> Result<TokenAccount, Error> {
+    if account.owner != spl_token_interface::id() || account.executable {
         return Err(Error::InvalidState("token account program owner".into()));
     }
-    TokenAccount::unpack(&state.account.data)
-        .map_err(|error| Error::InvalidState(error.to_string()))
+    TokenAccount::unpack(&account.data).map_err(|error| Error::InvalidState(error.to_string()))
 }
 
 fn revoke(state: &State) -> Result<Instruction, Error> {
-    let account = decode(state)?;
+    let account = decode(&state.account)?;
     if account.is_frozen() {
         return Err(Error::UnsupportedOperation);
     }
@@ -263,7 +402,7 @@ impl Adapter for DelegateAdapter {
 
     fn source_requirements(&self, state: &State) -> SourceRequirements {
         let mut accounts = vec![state.address];
-        if let Ok(account) = decode(state) {
+        if let Ok(account) = decode(&state.account) {
             accounts.push(account.owner);
             if let Some(delegate) = Option::<Pubkey>::from(account.delegate) {
                 accounts.push(delegate);
@@ -276,7 +415,7 @@ impl Adapter for DelegateAdapter {
     }
 
     fn compile_state(&self, state: &State, context: &Context) -> Result<Vec<Authorization>, Error> {
-        let account = decode(state)?;
+        let account = decode(&state.account)?;
         let Some(delegate) = Option::<Pubkey>::from(account.delegate) else {
             return Ok(vec![]);
         };
