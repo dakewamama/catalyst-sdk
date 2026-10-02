@@ -22,6 +22,9 @@
 - Close authority projection and native explicit-closer reset complete. Reset restores
   the owner fallback; Diff is Changed, not Removed. Mint and Close use AuthorityState's
   keyed native observations, with no duplicate observation model or ARM changes.
+- Token-2022 ordinary and Permanent Delegate Spend compile from native golden fixtures.
+  Owner and delegate revoke round trips preserve permanent authority. Unknown extension
+  semantics and same-principal overlap fail closed; ARM remains unchanged.
 - Native CloseAccount fixtures cover rent return, deletion/recompilation, ordinary
   token balance checks, frozen state, wrapped SOL, signatures and recipient aliasing.
 
@@ -30,18 +33,18 @@
 - Baseline SDK: 3 Bun tests and TypeScript check passed.
 - Rust ABI: determinism, requirements, version/program mismatch, evidence propagation,
   malformed/duplicate output, stale action evidence and declared action changes.
-- Rust fmt/strict Clippy pass; 6 ABI, 8 delegate, 8 mint and 9 close native tests pass.
+- Rust fmt/strict Clippy pass; 6 ABI, 8 delegate, 8 mint, 9 close and 11 Token-2022 tests pass.
 - Existing 3 Bun tests and TypeScript check pass.
 
 ## Real blockers
 
-- None for the delegate slice. No live deployment coverage has been established.
+- None for the supported local slices. No live deployment coverage has been established.
 
 ## Next critical path
 
 - Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- Next: Token-2022 extension interpretation and exact native fixtures.
+- Next: cross-repository SUB-0 review, including scope, provenance and minimality.
 - Multisig and program-controlled delegate principals remain unsupported, as do their
   revoke controllers. Current output is explicitly partial protocol coverage.
-- SUB-0 locked until SPL native fixtures and revoke round trip are verified and pushed.
+- SUB-0 remains locked until the Token-2022 milestone is pushed and cross-repository review passes.
 - Do not commit the pre-existing untracked package-lock.json.

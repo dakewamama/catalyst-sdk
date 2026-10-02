@@ -63,7 +63,7 @@ and consumes that allowance. Frozen state is suspended, zero allowance is inacti
 native unsigned/wrong-owner/frozen revoke failures leave state unchanged.
 
 This is a delegate projection, not complete account coverage. Owner,
-Burn and Token-2022 semantics are not projected yet. Spend and Burn share the native
+Burn semantics are not projected by this classic adapter. Spend and Burn share the native
 delegated allowance; this adapter emits only Spend and never adds their budgets together.
 Remaining allowance does not promise available balance or transaction success. Declared
 Diff supports exactly one canonical owner Revoke; other instructions return Unsupported.
@@ -100,6 +100,30 @@ and multisig/program-owned controllers remain unsupported. Native CloseAccount s
 returns lamports to an explicitly selected beneficiary and re-observation of the deleted
 account yields no Close authorization. The SDK does not propose a beneficiary or submit
 a Close transaction from observed state; human destination intent is not inferred.
+
+## Token-2022 delegate slice
+
+Token2022Adapter uses official extension decoding and native instruction builders.
+State requires the token account, its matching mint and keyed controller observations
+from the same observed bank. It projects ordinary cumulative Spend and mint-wide
+Permanent Delegate Spend. Only the exact local ELF digest named by token2022 constants
+is supported; this is not live deployment coverage or complete protocol coverage.
+
+Account extensions and mint extensions other than PermanentDelegate are unsupported.
+Malformed extension data is an error, never evidence that authority is absent. Mint,
+Freeze, Close and Burn powers are not projected by this adapter. Multisig and program
+controllers remain unsupported. ARM is unchanged.
+
+Native tests prove that Permanent Delegate bypasses the ordinary delegated allowance.
+When both delegate roles name the same principal, compilation returns Unsupported
+rather than claiming the ordinary allowance is independently consumed. Freezing one
+account suspends its ordinary delegation; it does not revoke mint-wide authority.
+Native balance and frozen-account checks still apply to permanent transfers.
+
+Both the owner and ordinary delegate can revoke ordinary delegation. Canonical declared
+Diff agrees with native execution and recompilation; Permanent Delegate survives.
+Permanent Delegate management actions are not exposed yet. Golden account and mint
+bytes are reproduced by native initialization, minting and approval.
 
 ## Checks
 

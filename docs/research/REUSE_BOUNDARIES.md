@@ -5,7 +5,7 @@
 | ARM serialization | Serde | DEPEND, already used | Semantic validation and schema fixtures |
 | Solana keys, instructions and signer/writable metas | Official Solana SDK crates | DEPEND, already used | Select native action; preserve its meaning |
 | SPL account decoding | spl-token-interface 3.0.0 | DEPEND, executed locally | Account owner/version checks and ARM translation |
-| Token-2022 base state and extension decoding | spl-token-2022-interface | DEPEND, source verified; not installed in SDK yet | Inspect extension inventory; reject unknown semantics |
+| Token-2022 base state and extension decoding | spl-token-2022-interface | DEPEND, executed locally | Inspect extension inventory; reject unknown semantics |
 | Native revoke and authority instruction construction | Official token interfaces | PUBLIC API, source verified | Identify the actual controller and required signers |
 | Exact deployment and adapter provenance | Cataloger | Project-owned | Bounded verified history; unknown versions rejected |
 | Native authority to common meaning | Catalyst and ARM | Project-owned | Translation, evidence and native fixture conformance |
@@ -14,8 +14,7 @@ The classic token interface 3.0.0 now executes with native solana-instruction 3.
 and solana-pubkey 4.2.0. Cataloger uses the same key version. Upstream solana-address
 1.1.0 re-exports 2.x, preserving type identity across interface generations; no project
 conversion layer was added. Cargo.lock retains the tested Agave 4.2 harness dependencies
-compatible with Rust 1.94.1. Token-2022 interface 3.1.2 compiled in an isolated compatibility
-proof but is not installed or interpreted by this adapter yet.
+compatible with Rust 1.94.1. Token-2022 interface 3.1.2 is installed and executes against the pinned native fixture.
 Do not implement a second instruction model or conversion framework to hide the gap.
 A client crate version does not establish the deployed program version.
 

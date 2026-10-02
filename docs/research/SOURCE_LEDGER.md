@@ -28,7 +28,7 @@
   `46eaacd2c13629eb3436354ed650a8df8b202bc4`; spl-token-2022-interface 3.1.2,
   commit `0e74c157aebd5dbdef8035b526a56f0e416f9fb6`.
 - License: Apache-2.0, verified in both published manifests.
-- Inspection: TARGETED SOURCE, not executed locally. Read published state decoding,
+- Inspection: TARGETED SOURCE and EXECUTED LOCALLY for the supported slices. Read state decoding,
   instruction revoke builders, extension inventory/access and PermanentDelegate helper.
 - Tests inspected: classic test_instruction_unpack_panic/proptest; Token-2022
   get_extension_types_with_opaque_buffer and malformed TransferHookAccount access tests.
@@ -39,7 +39,7 @@
   isolated proof. Upstream solana-address 1.1.0 re-exports Address 2.x; type equality
   was checked by assignments and native instruction return types, without conversion.
 - Classic interface now EXECUTED LOCALLY through Approve, Transfer and Revoke fixtures.
-- Token-2022 interpretation and live deployed-version matching remain unverified.
+- Token-2022 delegate interpretation is executed locally; live version matching remains unverified.
 
 ## Native classic token fixture
 
@@ -91,3 +91,24 @@
   delegate as revoking authority. Do not infer identical controllers from shared opcodes.
 - Reuse: PATTERN ONLY for interpreting the distinction; no source copied. These archived
   versions are not proof of current deployed behavior or a reason to choose an old client.
+
+## Native Token-2022 fixture
+
+- Source: https://github.com/anza-xyz/mollusk, published fixture 0.15.1,
+  commit f432ef136ee9779d2a814ebf2b80f44c10607255; Apache-2.0.
+- ELF SHA256: b2a7ce1ea6dfbcbc5ccb0e7f48f7c61dced1a86582d1c7d2e059ac54ed612da4.
+  The test asserts this digest. Capture metadata is not live deployment coverage.
+- Program source: https://github.com/solana-program/token-2022, published 11.1.0,
+  commit 8867f751c0f69367ba03af4f85510b5611989491; Apache-2.0.
+- Inspection: TARGETED SOURCE of transfer, revoke and PermanentDelegate SetAuthority;
+  EXECUTED LOCALLY against the pinned ELF. Interface extension inventory and typed access
+  tests informed malformed-data fixtures. No claim of a complete program review.
+- Native initialization reproduces both raw goldens. Ordinary delegation consumes its
+  allowance; Permanent Delegate bypasses it while retaining balance/frozen checks.
+  Owner and delegate each revoke ordinary delegation without removing Permanent Delegate.
+  Native permanent-authority clearing removes that projection and disables its transfers.
+- Counterexample: approving the Permanent Delegate as ordinary delegate allows a transfer
+  exceeding the ordinary allowance without consuming it. That overlap is Unsupported,
+  not an independently consumable cumulative grant. No ARM schema change was needed.
+- Reuse: DEPEND/PUBLIC API for decoding, builders and SVM execution. No source copied.
+  Unknown semantic extensions fail closed; malformed typed data cannot become absence.
