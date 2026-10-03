@@ -1,17 +1,14 @@
 # SUB-0 review
 
-Status corrected on 2026-10-03: the earlier unlock decision below is withdrawn.
-It checked local results and recorded upstream refs without inspecting hosted CI.
-Cataloger main jobs never started because GitHub reported an account billing lock.
-Subscriptions work is held until Cataloger hosted CI is green. The boundary correction
-removes Cataloger's ARM dependency and makes the support interval explicit.
+Final local gate reviewed on 2026-10-03 after Cataloger correction a88dbd8 and
+the SPL Freeze/Thaw classification correction. ARM remains pinned to
+5b05e06892dcc6d20d1db7f0324030916b152d6a with schema 0.1 unchanged.
 
-Reviewed on 2026-10-03 against pushed revisions:
-
-- ARM: d1e2e6ba752ffd7d67b6c55a15c57bffbb2cf15c; semantic dependency remains
-  pinned to 5b05e06892dcc6d20d1db7f0324030916b152d6a.
-- Cataloger: d60d49260ffaeda3478fab6b3fd854347c4cd0a4.
-- Catalyst: 323b873706a2da47d08cd19faed6f2349e84d24c.
+Hosted Cataloger CI: EXTERNALLY BLOCKED. GitHub reports that jobs cannot start
+because the account is locked for billing; the correction run 37086495077 ran no
+workflow steps. This external billing lock does not invalidate local gate evidence.
+The owner explicitly approved progression on exact local checks; hosted CI is not
+claimed green, and Railway is not a CI substitute.
 
 ## Gate evidence
 
@@ -19,7 +16,7 @@ Reviewed on 2026-10-03 against pushed revisions:
 | --- | --- |
 | ARM 0.1 frozen | Ten canonical fixtures, serialization and conservative evaluation tests; no token-driven schema change |
 | Catalyst ABI | Checked dispatch, native instruction types, evidence propagation and unsupported-version tests |
-| Cataloger resolver | Finite slot intervals, upgrade boundaries, gaps, deterministic resolution and adapter provenance tests |
+| Cataloger resolver | Explicit support intervals, gaps, deterministic resolution and provenance; no ARM dependency or capability declarations |
 | SPL and Token-2022 interpretation | Official state interfaces, checked raw and semantic goldens, hashed native ELF execution |
 | Native revoke round trip | Classic owner revoke; Token-2022 owner and delegate revoke; declared removal agrees with recompilation |
 | Unknown versions fail closed | Checked dispatch rejects unsupported contexts before native decoding |
@@ -28,7 +25,9 @@ Reviewed on 2026-10-03 against pushed revisions:
 | Milestones pushed | Reviewed revisions match locally recorded upstream main refs |
 
 Rust test totals: ARM 12, Cataloger 30 (7 resolver and 23 retained runtime),
-Catalyst 42. SDK also passes 3 Bun tests. Commands run in each repository:
+Catalyst 42. SDK also passes 3 Bun tests and `bun run typecheck`. SDK Rust checks use the offline
+commands below; ARM and Cataloger reran the same workflow without `--offline`.
+Commands run:
 
 ```sh
 cargo fmt --check
@@ -41,7 +40,8 @@ git diff --check
 
 SPL close-authority reset changes the principal to the owner rather than removing
 Close permission. The existing Changed representation handles this without a schema
-change. Mint/freezing powers remain distinct from spending authority. Token-2022
+change. Mint, Freeze and Thaw are direct operational capabilities. Administrative authority
+is reserved for managing authority or policy; the SDK adds no new capability or ARM type. Token-2022
 Permanent Delegate bypasses ordinary allowance; overlapping principals are explicitly
 Unsupported rather than assigned an independently consumed budget.
 
@@ -54,8 +54,9 @@ by these fixtures.
 
 ## Decision and limits
 
-The earlier review passed only the documented local fixture checks. It did not satisfy
-the hosted CI gate and cannot authorize further Subscriptions work.
+All exact local workflows pass. SUB-0 is green for verified local fixture scope and
+Subscriptions maintainer study is unlocked. Adapter implementation remains prohibited
+until the semantic study and ARM fit review are complete.
 This decision does not advertise live Solana support. Cataloger contains no verified
 live deployment records. Controllers requiring multisig or program semantics, unreviewed
 Token-2022 extensions and overlapping delegate roles remain unsupported. Individual

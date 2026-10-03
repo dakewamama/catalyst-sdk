@@ -16,7 +16,7 @@
 - Golden raw bytes reproduced by native Approve; native Transfer enforces/consumes
   allowance; native Revoke round trip recompiles to no delegate authority.
 - Classic Mint/Freeze/Thaw projection and native authority removal actions implemented.
-  Freeze/Thaw are administrative powers on a mint's token accounts. ARM is unchanged.
+  Freeze/Thaw are direct operational powers on a mint's token accounts. ARM is unchanged.
 - Native InitializeMint2/MintTo reproduce both mint and token golden bytes; clearing
   mint/freeze authority round-trips, preserves unrelated authority and cannot be restored.
 - Close authority projection and native explicit-closer reset complete. Reset restores
@@ -36,19 +36,18 @@
 - Rust fmt/strict Clippy pass; 6 ABI, 8 delegate, 8 mint, 9 close and 11 Token-2022 tests pass.
 - Existing 3 Bun tests and TypeScript check pass.
 
-## Real blockers
+## Hosted CI
 
-- GitHub Cataloger CI cannot start because the account is locked for billing.
-  Local tests are green; hosted CI is not. No live deployment coverage is established.
+- Cataloger CI is EXTERNALLY BLOCKED by the GitHub account billing lock. No workflow
+  steps ran. This external lock does not invalidate exact local gate evidence.
+- Owner authorized architecture progression on local checks; no Railway CI substitute.
 
 ## Next critical path
 
-- Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- SUB-0 unlock withdrawn: the earlier review omitted hosted CI and missed Cataloger
-  owning ARM semantics. Corrected record: docs/research/SUB_0_REVIEW.md.
-- Next: confirm Cataloger main CI after the owner resolves the GitHub billing lock.
-- Multisig and program-controlled delegate principals remain unsupported, as do their
-  revoke controllers. Current output is explicitly partial protocol coverage.
-- Token-2022 milestone pushed at 323b873. Initial Subscriptions source study began;
-  it is now held. No adapter or upstream source edits were made.
+- Cataloger correction a88dbd8 removes ARM semantics and clarifies support boundaries.
+- Final SUB-0 local checks pass: ARM 12, Cataloger 30 and SDK 42 Rust tests, SDK 3 Bun
+  tests and typecheck, formatting, strict Clippy and whitespace checks.
+- Freeze/Thaw classification corrected to Direct; ARM schema and native actions unchanged.
+- PADDLE UP: Subscriptions maintainer study, three durable research outputs, no adapter.
+- No live deployment coverage claimed. Unsupported native subsets remain documented.
 - Do not commit the pre-existing untracked package-lock.json.

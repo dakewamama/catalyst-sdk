@@ -69,7 +69,7 @@ Remaining allowance does not promise available balance or transaction success. D
 Diff supports exactly one canonical owner Revoke; other instructions return Unsupported.
 
 MintAdapter consumes AuthorityState observations for the same verified classic program.
-It projects Mint on the mint resource and administrative Freeze/Thaw on that mint's
+It projects Mint on the mint resource and direct Freeze/Thaw on that mint's
 token accounts. It does not infer a human owner from mint state. Native authority
 accounts must be supplied by key; missing, duplicate, multisig or program-owned
 observations fail closed. These are separate native powers, not Spend permissions.
@@ -133,7 +133,7 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 bun install --frozen-lockfile
 bun test
-bun run tsc --noEmit
+bun run typecheck
 git diff --check
 ```
 

@@ -81,7 +81,7 @@
     },
     "delegability": "unknown",
     "authority_kind": {
-      "kind": "administrative"
+      "kind": "direct"
     },
     "enforcement": "native",
     "observability": "exact",
@@ -131,7 +131,7 @@
     },
     "delegability": "unknown",
     "authority_kind": {
-      "kind": "administrative"
+      "kind": "direct"
     },
     "enforcement": "native",
     "observability": "exact",

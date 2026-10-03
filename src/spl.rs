@@ -265,13 +265,13 @@ impl Adapter for MintAdapter {
                 continue;
             };
             check_authority(state, authority)?;
-            let administrative = capability != Capability::Mint;
+            let token_accounts = capability != Capability::Mint;
             authorizations.push(Authorization {
                 schema_version: SCHEMA_VERSION.into(),
                 id: format!("{}:{}:{role}", context.program_id, state.address),
                 subject: Subject::Resource(resource.clone()),
                 principal: Principal::Identity(authority.to_string()),
-                resource: if administrative {
+                resource: if token_accounts {
                     Resource {
                         namespace: "solana:mint-token-accounts".into(),
                         id: state.address.to_string(),
@@ -287,11 +287,7 @@ impl Adapter for MintAdapter {
                     valid_until: None,
                 },
                 delegability: Delegability::Unknown,
-                authority_kind: if administrative {
-                    AuthorityKind::Administrative
-                } else {
-                    AuthorityKind::Direct
-                },
+                authority_kind: AuthorityKind::Direct,
                 enforcement: Enforcement::Native,
                 observability: Observability::Exact,
                 evidence: context.evidence.clone(),
