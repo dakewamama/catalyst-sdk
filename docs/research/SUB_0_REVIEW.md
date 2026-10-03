@@ -1,5 +1,11 @@
 # SUB-0 review
 
+Status corrected on 2026-10-03: the earlier unlock decision below is withdrawn.
+It checked local results and recorded upstream refs without inspecting hosted CI.
+Cataloger main jobs never started because GitHub reported an account billing lock.
+Subscriptions work is held until Cataloger hosted CI is green. The boundary correction
+removes Cataloger's ARM dependency and makes the support interval explicit.
+
 Reviewed on 2026-10-03 against pushed revisions:
 
 - ARM: d1e2e6ba752ffd7d67b6c55a15c57bffbb2cf15c; semantic dependency remains
@@ -48,8 +54,8 @@ by these fixtures.
 
 ## Decision and limits
 
-SUB-0 passes for the documented local fixture scope. Subscriptions source study is
-unlocked; implementation must follow its required deep study and native evidence.
+The earlier review passed only the documented local fixture checks. It did not satisfy
+the hosted CI gate and cannot authorize further Subscriptions work.
 This decision does not advertise live Solana support. Cataloger contains no verified
 live deployment records. Controllers requiring multisig or program semantics, unreviewed
 Token-2022 extensions and overlapping delegate roles remain unsupported. Individual

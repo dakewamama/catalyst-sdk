@@ -38,15 +38,17 @@
 
 ## Real blockers
 
-- None for the supported local slices. No live deployment coverage has been established.
+- GitHub Cataloger CI cannot start because the account is locked for billing.
+  Local tests are green; hosted CI is not. No live deployment coverage is established.
 
 ## Next critical path
 
 - Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- SUB-0 cross-repository review passed for local fixture scope; see
-  docs/research/SUB_0_REVIEW.md. No live support is claimed.
-- Next: Subscriptions deep source study before any adapter implementation.
+- SUB-0 unlock withdrawn: the earlier review omitted hosted CI and missed Cataloger
+  owning ARM semantics. Corrected record: docs/research/SUB_0_REVIEW.md.
+- Next: confirm Cataloger main CI after the owner resolves the GitHub billing lock.
 - Multisig and program-controlled delegate principals remain unsupported, as do their
   revoke controllers. Current output is explicitly partial protocol coverage.
-- Token-2022 milestone pushed at 323b873; Subscriptions study unlocked after gate review.
+- Token-2022 milestone pushed at 323b873. Initial Subscriptions source study began;
+  it is now held. No adapter or upstream source edits were made.
 - Do not commit the pre-existing untracked package-lock.json.
