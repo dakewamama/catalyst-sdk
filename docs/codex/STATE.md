@@ -43,8 +43,10 @@
 ## Next critical path
 
 - Cataloger resolver pushed at 0040ee5; catalyst-indexer is its old repository name.
-- Next: cross-repository SUB-0 review, including scope, provenance and minimality.
+- SUB-0 cross-repository review passed for local fixture scope; see
+  docs/research/SUB_0_REVIEW.md. No live support is claimed.
+- Next: Subscriptions deep source study before any adapter implementation.
 - Multisig and program-controlled delegate principals remain unsupported, as do their
   revoke controllers. Current output is explicitly partial protocol coverage.
-- SUB-0 remains locked until the Token-2022 milestone is pushed and cross-repository review passes.
+- Token-2022 milestone pushed at 323b873; Subscriptions study unlocked after gate review.
 - Do not commit the pre-existing untracked package-lock.json.
