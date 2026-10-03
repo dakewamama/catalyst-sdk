@@ -1,4 +1,6 @@
-use arm::{AuthorizationChange, Availability, Capability, EvidenceBundle, NativeContext};
+use arm::{
+    AuthorityKind, AuthorizationChange, Availability, Capability, EvidenceBundle, NativeContext,
+};
 use catalyst_sdk::{self as sdk, spl::*, Adapter, Context, Error};
 use mollusk_svm::Mollusk;
 use mollusk_svm_programs_token::token;
@@ -64,6 +66,9 @@ fn mint_raw_fixture_matches_exact_golden_and_requirements() {
     let golden: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/spl-mint.json")).unwrap();
     assert_eq!(serde_json::to_value(&projection).unwrap(), golden);
+    assert!(projection
+        .iter()
+        .all(|authority| authority.authority_kind == AuthorityKind::Direct));
     assert_eq!(
         projection,
         sdk::compile_state(&MintAdapter, &state, &context()).unwrap()
