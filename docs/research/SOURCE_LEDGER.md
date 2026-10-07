@@ -1,5 +1,31 @@
 # Source ledger
 
+## Subscriptions maintainer study
+
+- Source: https://github.com/solana-foundation/subscriptions, revision
+  `56de552a26a0f0af437c0ce5191b3309741cc596`; MIT license inspected.
+- Inspection: DEEP SOURCE for authority semantics, relevant native/client tests,
+  generated client slices, ADRs, security notes, July 30 audit and replay history.
+  EXECUTED LOCALLY only for 51 host unit tests and seven selected client tests.
+  Native SBF integration, full Surfpool suites and fuzz execution are not claimed.
+- Relevant source: instructions and their helpers, state/versioning, event engine,
+  program/build.rs, IDL, generated Rust/TS accounts and control builders, TS overlays,
+  integration lifecycle/replay tests and fuzz budget/conservation invariants.
+- History: PRs 214, 221 and 222 bind approvals to observed state and document
+  residual replay; PR 244 adds ephemeral hook context. Current source supersedes
+  old PR layout prose and ADR empty-payload descriptions. Open PR 252 is not part
+  of this baseline and is not borrowed as accepted behavior.
+- Audit: audited commit d6b3a5dc, remediation verified debb4f75, not blanket HEAD
+  coverage. The report distinguishes fixed findings from acknowledged behavior.
+- Experience: shared technical authority is not a merchant grant; a period cap
+  belongs to one native budget; active state is not collectible funds; slot/value
+  freshness checks are not unique epochs; recovery compatibility is distinct from
+  spending-version support. Native errors and boundaries outrank prose.
+- Reuse: GENERATE/PUBLIC API for future client integration; PATTERN ONLY for tests
+  and observation design. No source code copied into Catalyst or ARM.
+- Durable findings: SUBSCRIPTIONS_SEMANTICS.md, SUBSCRIPTIONS_FIXTURES.md and
+  SUBSCRIPTIONS_ARM_GAPS.md. No adapter or ARM schema change in this milestone.
+
 ## Native instruction types
 
 - Source: solana-sdk crates, https://github.com/anza-xyz/solana-sdk.
