@@ -1,8 +1,8 @@
 # Subscriptions fixture contract
 
 Baseline and verified semantics: [SUBSCRIPTIONS_SEMANTICS.md](SUBSCRIPTIONS_SEMANTICS.md).
-These are fixtures to capture through native execution before adapter claims,
-not fabricated golden files or a claim that Catalyst already supports Subscriptions.
+These are fixtures required before expanding adapter claims. Fixed delegation has
+native and semantic goldens; recurring and subscription cases remain uncaptured.
 Upstream test paths refer to the pinned source in that document.
 
 Every captured case must include program/token ELF hashes, source revisions,
@@ -62,7 +62,11 @@ The fixed-delegation SVM capture uses program source
 Its fixture records exact instructions and accounts before and after each
 transition. Token mint and account setup data are installed by the harness;
 authority and delegation state are created by native instructions. This is a
-local fixture, not a Catalyst projection or deployment claim.
+local fixture, not a live deployment claim. subscriptions-fixed-arm.json contains
+the expected technical and derived records after the partial pull. The adapter's
+native revoke executes and recompiles to the surviving technical approval.
 
-Recurring boundaries, subscriptions, and a Catalyst semantic golden still need
-native fixtures. Platform-tools v1.54 built the pinned program for this capture.
+Additional native tests prove sponsored rent return, unsigned rejection, inclusive
+expiry, zero/maximum expiry, token revoke, and authority closure/recreation in the
+same versus a later slot. Recurring boundaries and subscriptions still need native
+fixtures. Platform-tools v1.54 built the pinned program for this capture.

@@ -26,7 +26,7 @@ that would otherwise lie. No ARM change is proposed by this study.
 | Plan owner management | REPRESENTABLE | Separate Administrative ModifyAuthority/RevokeAuthority on scoped policy resources; never pretend every field or immutable term is editable |
 | Sponsor funds rent without control | REPRESENTABLE | Evidence and separate recovery permission if emitted; payer identity must not imply Spend or authority management |
 | Sunset preserves existing pulls | REPRESENTABLE | Current Spend remains active subject to finite end; new-grant management is a separate native fact |
-| Authority/delegation generation bindings | REPRESENTABLE | Raw evidence retains generation; NativeContext retains interpretation versions. Derived parent IDs must be scoped to the observed generation |
+| Authority/delegation generation bindings | REPRESENTABLE | Raw evidence retains generation and derived grant IDs include the bound generation. Technical SPL approval survives authority closure, so its identity remains independent of that generation |
 | Unknown native version | REPRESENTABLE | Unsupported before projection; recovery compatibility does not authorize future semantic interpretation |
 | Evidence and provenance | REPRESENTABLE | EvidenceBundle plus NativeContext links to immutable raw observations and versioned interpretation |
 | Complete effective spending across dependencies | PARTIAL | Derived parents describe lineage; ARM availability evaluator returns Unknown for derived records, rather than resolving native dependencies |
@@ -69,4 +69,6 @@ records separately. Expose only management actions proven by native round trips.
 
 Reuse the existing Catalyst ABI and evidence types. No new decoder framework,
 RPC provider, intent compiler or ARM abstraction is justified by this study.
-Adapter implementation follows study review; no adapter code is part of this commit.
+The fixed adapter and its semantic golden now prove that first slice. Active derived
+records still evaluate to Unknown without lineage resolution. Recurring and subscription
+support remain fixture gates; no ARM refinement has been justified.

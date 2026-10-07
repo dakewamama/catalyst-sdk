@@ -7,6 +7,7 @@
 | SPL account decoding | spl-token-interface 3.0.0 | DEPEND, executed locally | Account owner/version checks and ARM translation |
 | Token-2022 base state and extension decoding | spl-token-2022-interface | DEPEND, executed locally | Inspect extension inventory; reject unknown semantics |
 | Native revoke and authority instruction construction | Official token interfaces | PUBLIC API, source verified | Identify the actual controller and required signers |
+| Subscriptions fixed decoding and revoke | Official subscriptions 0.5.0 client | DEPEND/PUBLIC API, executed locally | Bind native observations, preserve generation and shared allowance, compile ARM |
 | Exact deployment and adapter provenance | Cataloger | Project-owned | Bounded verified history; unknown versions rejected |
 | Native authority to common meaning | Catalyst and ARM | Project-owned | Translation, evidence and native fixture conformance |
 

@@ -125,6 +125,32 @@ Diff agrees with native execution and recompilation; Permanent Delegate survives
 Permanent Delegate management actions are not exposed yet. Golden account and mint
 bytes are reproduced by native initialization, minting and approval.
 
+## Subscriptions fixed delegation
+
+subscriptions::FixedAdapter uses the official subscriptions 0.5.0 account types and
+instruction builders. FixedState supplies the delegation, authority, canonical source
+token account, matching mint, keyed wallet observations and verified SPL program version.
+Every account must come from the same observed bank. A deleted account must be explicitly
+observed; a missing account in an incomplete scan is insufficient evidence.
+
+The adapter emits the PDA's technical token allowance separately from the delegatee's
+derived fixed allowance. A 100-unit grant after a 40-unit pull has 60 remaining; the
+shared PDA approval is not a merchant grant. Inclusive native expiry becomes ARM's
+exclusive boundary, with zero and i64::MAX handled without overflow. ARM remains unchanged.
+Its generic evaluator returns Unknown for active derived records until lineage evaluation
+is implemented; these records do not promise balance or transaction success.
+
+The delegator's native Revoke closes only the fixed delegation and refunds its recorded
+payer. The declared removal matches native execution and recompilation; shared token
+approval survives. Direct token revoke suspends the retained grant. Closing the authority
+also suspends it; recreating the authority in the same slot preserves its generation
+binding, while recreating it in a later slot invalidates that binding.
+
+Support is limited to the exact local Subscriptions and classic SPL ELF versions.
+Unknown account versions and malformed bindings fail closed. Recurring delegations,
+subscriptions, Token-2022 and program-controlled delegatees remain outside this slice.
+The raw native fixture, complete ARM golden and Mollusk tests prove the supported path.
+
 ## Checks
 
 ```sh

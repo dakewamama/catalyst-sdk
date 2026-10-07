@@ -7,7 +7,8 @@
 - Inspection: DEEP SOURCE for authority semantics, relevant native/client tests,
   generated client slices, ADRs, security notes, July 30 audit and replay history.
   EXECUTED LOCALLY only for 51 host unit tests and seven selected client tests.
-  Native SBF integration, full Surfpool suites and fuzz execution are not claimed.
+  That study did not execute native SBF integration, full Surfpool suites or fuzzing.
+  Subsequent fixed-delegation SBF evidence is recorded below.
 - Relevant source: instructions and their helpers, state/versioning, event engine,
   program/build.rs, IDL, generated Rust/TS accounts and control builders, TS overlays,
   integration lifecycle/replay tests and fuzz budget/conservation invariants.
@@ -155,4 +156,9 @@
   and delegator revoke. Revoke closes fixed state but preserves shared token approval.
   Token/mint fixture data is harness-installed; authority and grant are program-created.
 - Reuse: DEPEND official client builders and Mollusk. No upstream source copied.
-  This is local protocol evidence, not deployment support or a Catalyst semantic golden.
+  This is local protocol evidence, not live deployment support.
+- FixedAdapter now uses the same official client for production decoding and revoke.
+  subscriptions-fixed-arm.json independently specifies the two expected ARM records.
+  Native tests verify canonical revoke/Diff/recompilation, sponsored rent refunds,
+  expiry boundaries, unsigned failures, token revoke and authority incarnation behavior.
+  ARM is unchanged; derived availability remains conservatively Unknown.

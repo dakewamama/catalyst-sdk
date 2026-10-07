@@ -5,6 +5,7 @@ use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
 
 pub mod spl;
+pub mod subscriptions;
 pub mod token2022;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
