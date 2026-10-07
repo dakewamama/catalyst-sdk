@@ -138,3 +138,21 @@
   not an independently consumable cumulative grant. No ARM schema change was needed.
 - Reuse: DEPEND/PUBLIC API for decoding, builders and SVM execution. No source copied.
   Unknown semantic extensions fail closed; malformed typed data cannot become absence.
+
+## Subscriptions fixed-delegation fixture
+
+- Source: solana-foundation/subscriptions `56de552a26a0f0af437c0ce5191b3309741cc596`,
+  MIT. DEEP SOURCE for the authority study; fixed lifecycle executed locally.
+- Official generated Rust client: crates.io `subscriptions` 0.5.0, source commit
+  `5a347ffaa969036061d274d3c91e0277962e2b51`. Reuse classification: DEPEND.
+- Mollusk 0.15.1 executes the program built with Solana platform-tools v1.54.
+  Locked offline rebuild with cargo-build-sbf 4.1.0, rustc 1.89.0 and default v0
+  architecture reproduced the identical ELF. The upstream worktree stayed clean.
+  Program ELF SHA256 `a59467f0b2d0a0211b06ddf9a3f3141a90eaea6faeeaa3d19541288eaa082107`;
+  Token ELF SHA256 `8190d3f7ceb6cb7a7a8d8924bff89f9f611e15ce1f806f2b6237f3311a98f697`.
+- Fixture captures native authority initialization, fixed grant creation, a 40-unit
+  pull from a 100-unit grant, rejected 61-unit pull (error 300, all accounts stable),
+  and delegator revoke. Revoke closes fixed state but preserves shared token approval.
+  Token/mint fixture data is harness-installed; authority and grant are program-created.
+- Reuse: DEPEND official client builders and Mollusk. No upstream source copied.
+  This is local protocol evidence, not deployment support or a Catalyst semantic golden.

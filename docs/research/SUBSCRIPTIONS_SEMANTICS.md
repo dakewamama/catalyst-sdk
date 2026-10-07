@@ -206,8 +206,14 @@ Executed October 3: `cargo +stable test --locked -p subscriptions-program`:
 51 passed, one documentation example ignored. Official client generation succeeded
 using installed stable Rust for formatting. Selected Vitest validators, event
 defaults and transfer-context tests: seven passed. This used host Rust 1.94.1,
-not the repository's pinned 1.92. Native SBF integration, Surfpool lifecycle and
-fuzz execution are not claimed: platform-tools download timed out.
+not the repository's pinned 1.92. Full native integration, Surfpool lifecycle
+and fuzz execution are not claimed.
+
+October 7 follow-up: built the pinned program with platform-tools v1.54 and ran
+the fixed-delegation create, partial transfer, over-limit rejection and revoke
+sequence in Mollusk. Raw transitions and ELF hashes are recorded in
+tests/fixtures/subscriptions-fixed.json. This proves that fixture's native
+behavior only; it does not prove an ARM projection.
 
 Cantina audit scope is commit-based: audited `d6b3a5dc`, remediation verified
 through `debb4f75`, not the study HEAD. The report was read; acknowledged residual

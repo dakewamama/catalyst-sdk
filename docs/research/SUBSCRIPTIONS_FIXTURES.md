@@ -14,7 +14,7 @@ state unchanged. Unsupported versions and absent dependency evidence are separat
 | Fixture | Native operation and assertion | Existing upstream evidence |
 | --- | --- | --- |
 | Technical authority | Initialize; ATA delegates finite `u64::MAX` to PDA, without granting that amount to a merchant | `test_initialize_subscription_authority.rs`, `test_revoke_subscription_authority.rs` |
-| Fixed | Create cap 100; pull 40 to a third party; remaining 60; pull 61 fails; delegator revokes; recompile removes effective grant | `test_create_fixed_delegation.rs`, `test_transfer_fixed_delegation.rs`, `test_revoke_delegation.rs` |
+| Fixed | Create cap 100; pull 40 to a third party; remaining 60; pull 61 fails with native error 300 and leaves all accounts unchanged; delegator revokes while the shared token approval remains | Captured in `tests/fixtures/subscriptions-fixed.json` with pinned SBF and Token ELF hashes; upstream: `test_create_fixed_delegation.rs`, `test_transfer_fixed_delegation.rs`, `test_revoke_delegation.rs` |
 | Recurring | Cap 100, period 30; pull 60; remaining 40; exceed rejected; skip periods and prove only one current cap, not accumulation | `test_transfer_recurring_delegation.rs` |
 | Finite boundary | Test expiry minus one, expiry and expiry plus one; exhausted final period never receives another cap | Same file; host helper `catch_up_at_exact_expiry_boundary_succeeds` already executed |
 | Subscription | Owner plus allowed puller share one cap; destination wallet whitelist checked; arbitrary third party caller rejected | `test_transfer_subscription.rs` |
@@ -56,6 +56,13 @@ re-observe and recompile. A declared Diff must agree with the observed semantic
 change, including shared authority effects and preserved unrelated permissions.
 All existing SPL goldens must still pass. Unknown deployments remain unsupported.
 
-SBF execution is the next proof step. Previous toolchain download failure is an
-environment limitation, not passing round-trip evidence. No Subscriptions SVM
-fixture or Catalyst semantic golden has been captured in this study milestone.
+The fixed-delegation SVM capture uses program source
+56de552a26a0f0af437c0ce5191b3309741cc596, official Rust client subscriptions
+0.5.0 from 5a347ffaa969036061d274d3c91e0277962e2b51, and Mollusk 0.15.1.
+Its fixture records exact instructions and accounts before and after each
+transition. Token mint and account setup data are installed by the harness;
+authority and delegation state are created by native instructions. This is a
+local fixture, not a Catalyst projection or deployment claim.
+
+Recurring boundaries, subscriptions, and a Catalyst semantic golden still need
+native fixtures. Platform-tools v1.54 built the pinned program for this capture.

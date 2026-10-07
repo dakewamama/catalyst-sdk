@@ -19,3 +19,5 @@ mollusk-svm = "=0.15.1"
 mollusk-svm-programs-token = { version = "=0.15.1", default-features = false, features = ["token", "token-2022"] }
 solana-program-option = "=3.1.0"
 sha2 = "0.10"
+subscriptions = "=0.5.0"
+spl-token-interface-v2 = { package = "spl-token-interface", version = "=2.0.0" }
