@@ -12,6 +12,8 @@ use spl_token_interface::{
 pub const PROGRAM_VERSION: &str =
     "sha256:8190d3f7ceb6cb7a7a8d8924bff89f9f611e15ce1f806f2b6237f3311a98f697";
 pub const DEPLOYMENT: &str = "fixture:mollusk:token:0.15.1";
+pub const LIVE_DEPLOYMENT: &str =
+    "solana:loader-v3:3gvYRKWyXRR9xKWe1ZjPhLY5ZJRN7KDB4rFZFGoJfFk2:419472000";
 
 pub struct DelegateAdapter;
 
@@ -391,7 +393,7 @@ impl Adapter for DelegateAdapter {
 
     fn supports(&self, native: &NativeContext) -> bool {
         native.protocol == "spl-token"
-            && native.deployment == DEPLOYMENT
+            && (native.deployment == DEPLOYMENT || native.deployment == LIVE_DEPLOYMENT)
             && native.program_version == PROGRAM_VERSION
             && native.adapter_version == "0.1"
     }

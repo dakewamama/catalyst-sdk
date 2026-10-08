@@ -77,8 +77,8 @@
   process_instruction and result account/error types. Upstream fixture notes capture
   mainnet-beta slot 347196212; that note does not establish current chain coverage.
 - Token ELF SHA256: 8190d3f7ceb6cb7a7a8d8924bff89f9f611e15ce1f806f2b6237f3311a98f697.
-  Test asserts the digest before golden compilation. Only the named local fixture
-  deployment is supported; the catalog still contains no live deployment records.
+  Test asserts the digest before golden compilation. Fixture capture metadata alone
+  does not establish live coverage; the byte observation below bounds an additional selector.
 - Native source checked: spl-token 9.0.0 processor.rs transfer, approve, revoke,
   validate_owner; interface state Pack/layout and revoke/approve/transfer builders.
 - Experience: signature checks happen in the native processor; frozen Revoke fails;
@@ -105,6 +105,32 @@
   delta. Source/recipient alias, missing signature and wrong controller fail unchanged.
 - Reuse: official Pack/state methods, SetAuthority/CloseAccount/InitializeAccount3 public
   APIs and Mollusk execution. No source copied; no balance predicate invented in ARM.
+
+## Observed classic token deployment (October 8, 2026)
+
+- Evidence: public mainnet finalized `solana program show` for
+  `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`. Loader-v3 ProgramData:
+  `3gvYRKWyXRR9xKWe1ZjPhLY5ZJRN7KDB4rFZFGoJfFk2`; lastDeploySlot `419472000`,
+  authority none, dataLen `108600`.
+- `solana program dump` returned a program whose full payload SHA256
+  is `8190d3f7ceb6cb7a7a8d8924bff89f9f611e15ce1f806f2b6237f3311a98f697`, equal
+  to the pinned Mollusk token ELF and `spl::PROGRAM_VERSION`.
+  This is OBSERVED-BYTE EQUALITY on October 8, 2026, not a reproducible-source-build claim.
+- A complete finalized `getMultipleAccounts` response at slot `454547887` retains
+  the same executable, loader metadata and Clock in Cataloger's
+  [native capture](https://github.com/dakewamama/cataloger/blob/main/services/catalyst-indexer/tests/fixtures/mainnet-spl-response.json).
+  The raw response SHA256 is
+  `68ffbb2b01685f3bdadf174780681fb4dac9355b58282a09d145ff8f5acd1b0e`.
+- Additional supported selector: `spl::LIVE_DEPLOYMENT` is exactly
+  `solana:loader-v3:3gvYRKWyXRR9xKWe1ZjPhLY5ZJRN7KDB4rFZFGoJfFk2:419472000`.
+  The fixture selector remains supported. Delegate, Mint and Close retain exact
+  protocol, full payload hash and adapter version `0.1` checks.
+- Runtime must verify each observation: validate raw program, ProgramData and Clock
+  from the same finalized response, comparing the full program payload hash and exact
+  deployment selector before supplying Context. A label alone is insufficient.
+  This observation establishes no open-ended slot interval or current coverage.
+- Native Revoke, declared Diff and recompilation are tested for both contexts using
+  the same hashed ELF locally in Mollusk. These tests do not execute on mainnet.
 
 ## Historical program source comparison
 

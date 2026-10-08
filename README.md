@@ -51,10 +51,13 @@ action requires an observed ordinary system account; multisig/program-controlled
 are unsupported for actions. Multisig/program-controlled delegates are unsupported for
 interpretation until their principal semantics are implemented.
 
-Support is limited to the exact ELF digest and local deployment named by spl constants.
-The ELF comes from Mollusk's pinned token fixture crate, not a live deployment lookup.
-Cataloger must establish live deployment coverage before this adapter can advertise it.
-Unknown versions fail before decoding. Do not relabel a live observation as this fixture.
+Support is limited to the exact ELF digest and two deployment selectors named by spl
+constants: the local fixture and LIVE_DEPLOYMENT. The October 8, 2026 mainnet observation
+matched the pinned Mollusk ELF bytes, as recorded in [SOURCE_LEDGER.md](docs/research/SOURCE_LEDGER.md).
+For each live observation, the runtime must validate raw program, ProgramData and Clock
+from the same finalized response and compare the full payload hash and exact selector.
+A label alone does not establish coverage. Unknown versions fail before decoding.
+Native tests execute the same hashed ELF locally; they do not execute on mainnet.
 
 The checked-in raw state is reproduced by native Approve execution and has a complete
 ARM golden. Mollusk executes Revoke; recompilation removes the authorization and agrees

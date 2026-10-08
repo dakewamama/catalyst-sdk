@@ -214,8 +214,15 @@ fn native_spending_enforces_and_consumes_the_observed_budget() {
 
 #[test]
 fn native_revoke_executes_and_recompilation_matches_declared_diff() {
+    for deployment in [DEPLOYMENT, LIVE_DEPLOYMENT] {
+        let mut context = context();
+        context.native.deployment = deployment.into();
+        native_revoke_round_trip(context);
+    }
+}
+
+fn native_revoke_round_trip(context: Context) {
     let mut state = state();
-    let context = context();
     let before = sdk::compile_state(&DelegateAdapter, &state, &context)
         .unwrap()
         .remove(0);
@@ -262,6 +269,51 @@ fn native_revoke_executes_and_recompilation_matches_declared_diff() {
     assert!(sdk::compile_state(&DelegateAdapter, &state, &observed)
         .unwrap()
         .is_empty());
+}
+
+#[test]
+fn only_exact_deployments_and_versions_are_supported() {
+    let state = state();
+    for deployment in [DEPLOYMENT, LIVE_DEPLOYMENT] {
+        let mut known = context();
+        known.native.deployment = deployment.into();
+        assert!(DelegateAdapter.supports(&known.native));
+        assert!(MintAdapter.supports(&known.native));
+        assert!(CloseAdapter.supports(&known.native));
+        let authorization = sdk::compile_state(&DelegateAdapter, &state, &known)
+            .unwrap()
+            .remove(0);
+        assert_eq!(authorization.native_context, known.native);
+        for field in 0..7 {
+            let mut unknown = known.clone();
+            match field {
+                0 => unknown.native.program_version = "sha256:unknown".into(),
+                1 => unknown.native.deployment = "unknown".into(),
+                2 => unknown.native.adapter_version = "future".into(),
+                3 => unknown.native.protocol = "spl-token-2022".into(),
+                4 => unknown.native.deployment = LIVE_DEPLOYMENT.replace("419472000", "419472001"),
+                5 => {
+                    unknown.native.deployment = format!("solana:loader-v3:{}:419472000", token::ID)
+                }
+                _ => unknown.native.deployment = format!("{LIVE_DEPLOYMENT}:other"),
+            }
+            assert!(!DelegateAdapter.supports(&unknown.native));
+            assert!(!MintAdapter.supports(&unknown.native));
+            assert!(!CloseAdapter.supports(&unknown.native));
+            assert_eq!(
+                sdk::compile_state(&DelegateAdapter, &state, &unknown),
+                Err(Error::UnsupportedVersion)
+            );
+            assert_eq!(
+                sdk::diff_transaction(&DelegateAdapter, &[], &state, &unknown),
+                Err(Error::UnsupportedVersion)
+            );
+            assert_eq!(
+                sdk::actions(&DelegateAdapter, &authorization, &state, &unknown),
+                Err(Error::UnsupportedVersion)
+            );
+        }
+    }
 }
 
 #[test]
