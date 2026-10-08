@@ -109,6 +109,7 @@ mod recurring {
             mint: account(mint),
             token_program_version: sdk::spl::PROGRAM_VERSION.into(),
             unix_timestamp: Some(now),
+            plan: None,
         }
     }
 
@@ -398,6 +399,7 @@ fn state(accounts: &[(Pubkey, Account)]) -> DelegationState {
         mint: account(mint),
         token_program_version: sdk::spl::PROGRAM_VERSION.into(),
         unix_timestamp: None,
+        plan: None,
     }
 }
 

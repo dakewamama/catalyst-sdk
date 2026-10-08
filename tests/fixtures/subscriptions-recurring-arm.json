@@ -52,7 +52,7 @@
       "protocol": "subscriptions",
       "deployment": "fixture:mollusk:subscriptions:0.5.0",
       "program_version": "sha256:a59467f0b2d0a0211b06ddf9a3f3141a90eaea6faeeaa3d19541288eaa082107",
-      "adapter_version": "0.2"
+      "adapter_version": "0.3"
     }
   },
   {
@@ -114,7 +114,7 @@
       "protocol": "subscriptions",
       "deployment": "fixture:mollusk:subscriptions:0.5.0",
       "program_version": "sha256:a59467f0b2d0a0211b06ddf9a3f3141a90eaea6faeeaa3d19541288eaa082107",
-      "adapter_version": "0.2"
+      "adapter_version": "0.3"
     }
   }
 ]

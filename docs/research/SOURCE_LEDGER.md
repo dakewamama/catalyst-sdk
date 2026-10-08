@@ -200,3 +200,18 @@
   never opens a fresh period at the final boundary.
 - Reuse: DEPEND/PUBLIC API for official instruction builders and Mollusk. No source
   copied. The capture proves native behavior, not yet its semantic projection.
+
+## Subscriptions semantic compilation
+
+- DelegationAdapter 0.3 uses official SubscriptionDelegation and Plan decoding,
+  validating owner, exact kind/length, header version, native bindings and current
+  wallet/clock evidence. Reuse: DEPEND for clients; REIMPLEMENT FROM SPEC for
+  semantic translation and native time calculations. No source copied.
+- One principal set shares one period budget; recipient constraints remain separate.
+  Plan-owner membership management is Administrative and Partial, not spend power.
+  Existing fixed/recurring goldens change only adapter provenance to 0.3.
+- Native control uses CancelSubscription, CancelSubscriptionNow, ResumeSubscription
+  and RevokeDelegation public APIs. Declared Diff changes lifecycle/virtual period
+  usage at the observed clock; native execution and recompilation are its proof.
+  Canonical cancellation can have no semantic delta when finite plan end already
+  imposes that cutoff. Retained signatures still obey the documented native limits.

@@ -2,8 +2,8 @@
 
 Baseline and verified semantics: [SUBSCRIPTIONS_SEMANTICS.md](SUBSCRIPTIONS_SEMANTICS.md).
 These are fixtures required before expanding adapter claims. Fixed and recurring
-delegations have native and semantic goldens. Subscription lifecycle has a native
-capture; its semantic projection and control actions remain the next gate.
+delegations and subscriptions have native captures and semantic goldens. Subscription
+control actions also execute and recompile through the existing adapter boundary.
 Upstream test paths refer to the pinned source in that document.
 
 Every captured case must include program/token ELF hashes, source revisions,
@@ -80,8 +80,8 @@ subscriptions-recurring-arm.json specifies the separate technical approval and d
 recurring grant after a 60-unit pull. Projection derives an unpersisted rollover from
 the bank clock; it does not pretend a rejected transaction committed that rollover.
 Native tests also create an unbounded grant with a future start and prove its time gate.
-DelegationAdapter version 0.2 handles both kinds and proves revoke/Diff/recompilation
-for each.
+DelegationAdapter handles both kinds and proves revoke/Diff/recompilation for each.
+Version 0.3 adds subscription support; their existing goldens change only provenance.
 
 subscriptions-lifecycle.json captures 41 native transitions with the same pinned
 program/client and ELF hashes. Plans use 100-unit hourly budgets. Owner and puller
@@ -99,6 +99,19 @@ capture also rejects stale subscribe terms/generation, premature subscriber revo
 and stale plan updates. Sunset permits puller removal but rejects restoration;
 the removed puller loses collection authority. At finite plan end, cancellation
 is capped at end plus one and the final period's remaining budget is collectible
-through the inclusive end. Collection fails one second later. This does not yet
-prove the subscription ARM projection, live support, global revoke or authority
-closure/recreation behavior for subscriptions.
+through the inclusive end. Collection fails one second later.
+
+subscriptions-plan-arm.json independently specifies the complete owner-pull
+projection: technical approval, one shared derived spending grant with recipient
+restriction, and separate Partial plan membership administration. Conformance tests
+compare native action instructions, execute Cancel/CancelNow/Resume/Revoke, recompile
+and require the declared semantic Diff to match. Resume preserves usage. Immediate
+cancel at subscription creation fits Revoked; cancellation at a rollover boundary
+must also update virtual usage. When plan end already imposes the same cutoff,
+cancellation has no ARM change despite changing native bytes. These comparisons
+use the same observed bank clock; delayed landing requires fresh observation.
+
+Live deployment support, native global revoke actions, sponsor recovery and closed
+plan recovery remain outside the adapter scope. Native version, malformed binding
+and missing clock/plan/wallet evidence tests fail closed. Active derived availability
+remains Unknown without lineage evaluation; no ARM schema change was needed.

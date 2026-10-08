@@ -3,9 +3,15 @@ use crate::{
     Action, ActionKind, Adapter, Context, Error, Protocol, SourceRequirements,
 };
 use ::subscriptions::{
-    accounts::{FixedDelegation, RecurringDelegation, SubscriptionAuthority},
-    instructions::RevokeDelegation,
-    types::Header,
+    accounts::{
+        EventAuthority, FixedDelegation, Plan, RecurringDelegation, SubscriptionAuthority,
+        SubscriptionDelegation,
+    },
+    instructions::{
+        CancelSubscription, CancelSubscriptionNow, CancelSubscriptionNowInstructionArgs,
+        ResumeSubscription, ResumeSubscriptionInstructionArgs, RevokeDelegation,
+    },
+    types::{CancelSubscriptionNowData, Header, ResumeData},
     SUBSCRIPTIONS_ID,
 };
 use arm::*;
@@ -19,7 +25,7 @@ pub const PROGRAM_VERSION: &str =
     "sha256:a59467f0b2d0a0211b06ddf9a3f3141a90eaea6faeeaa3d19541288eaa082107";
 pub const DEPLOYMENT: &str = "fixture:mollusk:subscriptions:0.5.0";
 
-pub const ADAPTER_VERSION: &str = "0.2";
+pub const ADAPTER_VERSION: &str = "0.3";
 
 pub struct DelegationAdapter;
 
@@ -30,11 +36,13 @@ pub struct DelegationState {
     pub mint: (Pubkey, Account),
     pub token_program_version: String,
     pub unix_timestamp: Option<i64>,
+    pub plan: Option<(Pubkey, Account)>,
 }
 
 enum Delegation {
     Fixed(FixedDelegation),
     Recurring(RecurringDelegation),
+    Subscription(SubscriptionDelegation),
 }
 
 impl Delegation {
@@ -42,10 +50,15 @@ impl Delegation {
         match self {
             Self::Fixed(grant) => &grant.header,
             Self::Recurring(grant) => &grant.header,
+            Self::Subscription(grant) => &grant.header,
         }
     }
 
-    fn terms(&self, now: Option<i64>) -> Result<(u64, UsageSemantics, Lifecycle), Error> {
+    fn terms(
+        &self,
+        now: Option<i64>,
+        plan: Option<&Plan>,
+    ) -> Result<(u64, UsageSemantics, Lifecycle), Error> {
         let (amount, usage, start, expiry) = match self {
             Self::Fixed(grant) => (
                 grant.amount,
@@ -55,64 +68,157 @@ impl Delegation {
                 None,
                 grant.expiry_ts,
             ),
-            Self::Recurring(grant) => {
-                let now = now.ok_or(Error::InsufficientEvidence)?;
-                let period = i64::try_from(grant.period_length_s)
-                    .ok()
-                    .filter(|period| *period > 0)
-                    .ok_or_else(|| Error::InvalidState("recurring period".into()))?;
-                let anchor = grant.current_period_start_ts;
-                let mut start = anchor;
-                let mut pulled = grant.amount_pulled_in_period;
-                if pulled > grant.amount_per_period {
-                    return Err(Error::InvalidState("recurring consumption".into()));
-                }
-                if now >= anchor && (grant.expiry_ts == 0 || now <= grant.expiry_ts) {
-                    // Inclusive expiry retains the last period starting strictly before it.
-                    let until = if grant.expiry_ts == 0 {
-                        now
-                    } else {
-                        now.min(grant.expiry_ts.saturating_sub(1))
-                    };
-                    let elapsed = until
-                        .checked_sub(anchor)
-                        .ok_or(Error::UnsupportedOperation)?;
-                    if elapsed >= period {
-                        start = anchor
-                            .checked_add(elapsed / period * period)
-                            .ok_or(Error::UnsupportedOperation)?;
-                        pulled = 0;
-                    }
-                }
-                if start.checked_add(period).is_none() {
-                    return Err(Error::UnsupportedOperation);
-                }
-                (
+            Self::Recurring(grant) => (
+                grant.amount_per_period,
+                recurring_usage(
                     grant.amount_per_period,
-                    UsageSemantics::Recurring {
-                        period_seconds: grant.period_length_s,
-                        anchor_unix_seconds: anchor,
-                        observed_period_start: start,
-                        remaining: Some(grant.amount_per_period - pulled),
-                    },
-                    Some(anchor),
+                    grant.period_length_s,
+                    grant.current_period_start_ts,
+                    grant.amount_pulled_in_period,
                     grant.expiry_ts,
+                    now.ok_or(Error::InsufficientEvidence)?,
+                )?,
+                Some(grant.current_period_start_ts),
+                grant.expiry_ts,
+            ),
+            Self::Subscription(grant) => {
+                let plan = plan.ok_or(Error::InsufficientEvidence)?;
+                let period = grant
+                    .terms
+                    .period_hours
+                    .checked_mul(3_600)
+                    .filter(|_| {
+                        (1..=8_760).contains(&grant.terms.period_hours) && grant.terms.amount != 0
+                    })
+                    .ok_or_else(|| Error::InvalidState("subscription terms".into()))?;
+                (
+                    grant.terms.amount,
+                    recurring_usage(
+                        grant.terms.amount,
+                        period,
+                        grant.current_period_start_ts,
+                        grant.amount_pulled_in_period,
+                        plan.data.end_ts,
+                        now.ok_or(Error::InsufficientEvidence)?
+                            .min(if grant.expires_at_ts == 0 {
+                                i64::MAX
+                            } else {
+                                grant.expires_at_ts.saturating_sub(1)
+                            }),
+                    )?,
+                    Some(grant.current_period_start_ts),
+                    plan.data.end_ts,
                 )
             }
         };
-        Ok((
-            amount,
-            usage,
+        let mut until = if expiry == 0 {
+            None
+        } else {
+            expiry.checked_add(1)
+        };
+        if let Self::Subscription(grant) = self {
+            // Cancellation is exclusive; the plan's native end remains inclusive.
+            if grant.expires_at_ts != 0 {
+                until = Some(until.map_or(grant.expires_at_ts, |end| end.min(grant.expires_at_ts)));
+            }
+        }
+        let lifecycle = if start.zip(until).is_some_and(|(start, end)| start >= end) {
+            Lifecycle::Revoked
+        } else {
             Lifecycle::Active {
                 valid_from: start,
-                // Native expiry is inclusive; i64::MAX has no later representable instant.
-                valid_until: if expiry == 0 {
-                    None
-                } else {
-                    expiry.checked_add(1)
-                },
-            },
-        ))
+                valid_until: until,
+            }
+        };
+        Ok((amount, usage, lifecycle))
+    }
+}
+
+fn recurring_usage(
+    amount: u64,
+    period: u64,
+    anchor: i64,
+    mut pulled: u64,
+    expiry: i64,
+    now: i64,
+) -> Result<UsageSemantics, Error> {
+    let length = i64::try_from(period)
+        .ok()
+        .filter(|period| *period > 0)
+        .ok_or_else(|| Error::InvalidState("recurring period".into()))?;
+    if pulled > amount {
+        return Err(Error::InvalidState("recurring consumption".into()));
+    }
+    let mut start = anchor;
+    if now >= anchor && (expiry == 0 || now <= expiry) {
+        // Inclusive expiry retains the last period starting strictly before it.
+        let until = if expiry == 0 {
+            now
+        } else {
+            now.min(expiry.saturating_sub(1))
+        };
+        let elapsed = until
+            .checked_sub(anchor)
+            .ok_or(Error::UnsupportedOperation)?;
+        if elapsed >= length {
+            start = anchor
+                .checked_add(elapsed / length * length)
+                .ok_or(Error::UnsupportedOperation)?;
+            pulled = 0;
+        }
+    }
+    if start.checked_add(length).is_none() {
+        return Err(Error::UnsupportedOperation);
+    }
+    Ok(UsageSemantics::Recurring {
+        period_seconds: period,
+        anchor_unix_seconds: anchor,
+        observed_period_start: start,
+        remaining: Some(amount - pulled),
+    })
+}
+
+fn plan(state: &DelegationState) -> Result<Option<Plan>, Error> {
+    let Some((address, account)) = &state.plan else {
+        return Ok(None);
+    };
+    if absent(account) {
+        return Err(Error::UnsupportedOperation);
+    }
+    if account.owner != SUBSCRIPTIONS_ID
+        || account.executable
+        || account.data.len() != 491
+        || account.data.first() != Some(&1)
+    {
+        return Err(Error::InvalidState("plan owner, kind or length".into()));
+    }
+    let plan =
+        Plan::from_bytes(&account.data).map_err(|error| Error::InvalidState(error.to_string()))?;
+    let (expected, bump) = Plan::find_pda(&plan.owner, plan.data.plan_id);
+    if *address != expected
+        || plan.bump != bump
+        || plan.status > 1
+        || plan.data.mint != state.mint.0
+        || plan.data.terms.amount == 0
+        || !(1..=8_760).contains(&plan.data.terms.period_hours)
+    {
+        return Err(Error::InvalidState("plan identity, status or terms".into()));
+    }
+    Ok(Some(plan))
+}
+
+fn principal(keys: impl IntoIterator<Item = Pubkey>) -> Principal {
+    let mut principals = Vec::new();
+    for key in keys {
+        let item = Principal::Identity(key.to_string());
+        if key != Pubkey::default() && !principals.contains(&item) {
+            principals.push(item);
+        }
+    }
+    if principals.len() == 1 {
+        principals.remove(0)
+    } else {
+        Principal::AnyOf(principals)
     }
 }
 
@@ -143,7 +249,11 @@ fn delegation(state: &DelegationState) -> Result<Option<Delegation>, Error> {
             .map(Delegation::Recurring)
             .map(Some)
             .map_err(|error| Error::InvalidState(error.to_string())),
-        2 | 3 => Err(Error::InvalidState("delegation length".into())),
+        4 if account.data.len() == 155 => SubscriptionDelegation::from_bytes(&account.data)
+            .map(Delegation::Subscription)
+            .map(Some)
+            .map_err(|error| Error::InvalidState(error.to_string())),
+        2..=4 => Err(Error::InvalidState("delegation length".into())),
         _ => Err(Error::UnsupportedOperation),
     }
 }
@@ -152,16 +262,115 @@ fn revoke(state: &DelegationState) -> Result<Instruction, Error> {
     let grant = delegation(state)?.ok_or(Error::UnsupportedOperation)?;
     let header = grant.header();
     check_authority(&state.source, header.delegator)?;
-    let recipients = if header.payer == header.delegator {
-        vec![]
+    let mut recipients = if matches!(grant, Delegation::Subscription(_)) {
+        vec![AccountMeta::new_readonly(header.delegatee, false)]
     } else {
-        vec![AccountMeta::new(header.payer, false)]
+        vec![]
     };
+    if header.payer != header.delegator {
+        recipients.push(AccountMeta::new(header.payer, false));
+    }
     Ok(RevokeDelegation {
         authority: header.delegator,
         delegation_account: state.delegation.0,
     }
     .instruction_with_remaining_accounts(&recipients))
+}
+
+fn cancel_cutoff(grant: &SubscriptionDelegation, plan: &Plan, now: i64) -> Result<i64, Error> {
+    if grant.terms != plan.data.terms {
+        return Ok(now);
+    }
+    let period = grant
+        .terms
+        .period_hours
+        .checked_mul(3_600)
+        .and_then(|period| i64::try_from(period).ok())
+        .filter(|period| *period > 0)
+        .ok_or_else(|| Error::InvalidState("subscription period".into()))?;
+    let elapsed = now.saturating_sub(grant.current_period_start_ts);
+    let cutoff = (elapsed / period)
+        .checked_add(1)
+        .and_then(|periods| periods.checked_mul(period))
+        .and_then(|offset| grant.current_period_start_ts.checked_add(offset))
+        .ok_or(Error::UnsupportedOperation)?;
+    Ok(if plan.data.end_ts == 0 {
+        cutoff
+    } else {
+        cutoff.min(plan.data.end_ts.saturating_add(1))
+    })
+}
+
+fn controls(
+    state: &DelegationState,
+    grant: &Delegation,
+    plan: Option<&Plan>,
+) -> Result<Vec<(ActionKind, Instruction)>, Error> {
+    let Delegation::Subscription(grant) = grant else {
+        return Ok(vec![(ActionKind::Revoke, revoke(state)?)]);
+    };
+    let now = state.unix_timestamp.ok_or(Error::InsufficientEvidence)?;
+    let plan = plan.ok_or(Error::InsufficientEvidence)?;
+    let (event_authority, _) = EventAuthority::find_pda();
+    if grant.expires_at_ts != 0 && now >= grant.expires_at_ts {
+        return Ok(vec![(ActionKind::Revoke, revoke(state)?)]);
+    }
+    let mut actions = Vec::new();
+    if grant.expires_at_ts == 0 {
+        cancel_cutoff(grant, plan, now)?;
+        actions.push((
+            ActionKind::Cancel,
+            CancelSubscription {
+                subscriber: grant.header.delegator,
+                plan_pda: grant.header.delegatee,
+                subscription_pda: state.delegation.0,
+                event_authority,
+                self_program: SUBSCRIPTIONS_ID,
+            }
+            .instruction(),
+        ));
+    } else if grant.terms == plan.data.terms
+        && (plan.data.end_ts == 0 || now <= plan.data.end_ts)
+        && !absent(&state.authority.1)
+    {
+        let authority = SubscriptionAuthority::from_bytes(&state.authority.1.data)
+            .map_err(|error| Error::InvalidState(error.to_string()))?;
+        if authority.init_id == grant.header.init_id {
+            actions.push((
+                ActionKind::Resume,
+                ResumeSubscription {
+                    subscriber: grant.header.delegator,
+                    plan_pda: grant.header.delegatee,
+                    subscription_pda: state.delegation.0,
+                    subscription_authority: state.authority.0,
+                    event_authority,
+                    self_program: SUBSCRIPTIONS_ID,
+                }
+                .instruction(ResumeSubscriptionInstructionArgs {
+                    resume_data: ResumeData {
+                        expected_expires_at_ts: grant.expires_at_ts,
+                    },
+                }),
+            ));
+        }
+    }
+    actions.push((
+        ActionKind::CancelNow,
+        CancelSubscriptionNow {
+            subscriber: grant.header.delegator,
+            merchant: plan.owner,
+            plan_pda: grant.header.delegatee,
+            subscription_pda: state.delegation.0,
+            event_authority,
+            self_program: SUBSCRIPTIONS_ID,
+        }
+        .instruction(CancelSubscriptionNowInstructionArgs {
+            cancel_subscription_now_data: CancelSubscriptionNowData {
+                expected_current_period_start_ts: grant.current_period_start_ts,
+            },
+        }),
+    ));
+    Ok(actions)
 }
 
 impl Adapter for DelegationAdapter {
@@ -198,9 +407,21 @@ impl Adapter for DelegationAdapter {
                 accounts.push(grant.header().delegatee);
             }
         }
+        if let Ok(Some(plan)) = plan(state) {
+            for key in [plan.owner].into_iter().chain(plan.data.pullers) {
+                if key != Pubkey::default() && !accounts.contains(&key) {
+                    accounts.push(key);
+                }
+            }
+            if let Some((address, _)) = &state.plan {
+                if !accounts.contains(address) {
+                    accounts.push(*address);
+                }
+            }
+        }
         SourceRequirements {
             accounts,
-            clock: state.delegation.1.data.first() == Some(&3),
+            clock: state.plan.is_some() || matches!(state.delegation.1.data.first(), Some(3 | 4)),
         }
     }
 
@@ -266,11 +487,31 @@ impl Adapter for DelegationAdapter {
             Some(authority)
         };
         let grant = delegation(state)?;
+        let plan = plan(state)?;
         if let Some(grant) = &grant {
             let header = grant.header();
             let (authority, mint) = match grant {
                 Delegation::Fixed(grant) => (grant.subscription_authority, grant.mint),
                 Delegation::Recurring(grant) => (grant.subscription_authority, grant.mint),
+                Delegation::Subscription(_) => {
+                    let plan = plan.as_ref().ok_or(Error::InsufficientEvidence)?;
+                    let address = state.plan.as_ref().ok_or(Error::InsufficientEvidence)?.0;
+                    let (expected, bump) =
+                        SubscriptionDelegation::find_pda(&address, &header.delegator);
+                    if header.delegatee != address
+                        || state.delegation.0 != expected
+                        || header.bump != bump
+                    {
+                        return Err(Error::InvalidState("subscription binding".into()));
+                    }
+                    check_authority(&state.source, header.delegator)?;
+                    for key in [plan.owner].into_iter().chain(plan.data.pullers) {
+                        if key != Pubkey::default() {
+                            check_authority(&state.source, key)?;
+                        }
+                    }
+                    (authority_address, source.mint)
+                }
             };
             if header.delegator != source.owner
                 || mint != source.mint
@@ -278,7 +519,9 @@ impl Adapter for DelegationAdapter {
             {
                 return Err(Error::InvalidState("delegation binding".into()));
             }
-            check_authority(&state.source, grant.header().delegatee)?;
+            if !matches!(grant, Delegation::Subscription(_)) {
+                check_authority(&state.source, grant.header().delegatee)?;
+            }
         }
         let approved = Option::<Pubkey>::from(source.delegate) == Some(authority_address);
         let asset = Resource {
@@ -326,14 +569,14 @@ impl Adapter for DelegationAdapter {
             vec![]
         };
         if let Some(grant) = grant {
-            let (amount, usage, lifecycle) = grant.terms(state.unix_timestamp)?;
-            let active = approved
+            let (amount, usage, lifecycle) = grant.terms(state.unix_timestamp, plan.as_ref())?;
+            let mut active = approved
                 && !source.is_frozen()
                 && source.amount != 0
                 && source.delegated_amount != 0
                 && authority.is_some_and(|authority| authority.init_id == grant.header().init_id);
             let parent = technical.id.clone();
-            let mut authorization = technical;
+            let mut authorization = technical.clone();
             authorization.id = format!(
                 "{}:{}:{}:spend",
                 context.program_id,
@@ -343,6 +586,26 @@ impl Adapter for DelegationAdapter {
             authorization.principal = Principal::Identity(grant.header().delegatee.to_string());
             authorization.constraints =
                 ConstraintExpr::Constraint(Constraint::AmountAtMost { asset, amount });
+            if let Delegation::Subscription(grant) = &grant {
+                let plan = plan.as_ref().ok_or(Error::InsufficientEvidence)?;
+                active &= plan.data.terms == grant.terms;
+                authorization.principal =
+                    principal([plan.owner].into_iter().chain(plan.data.pullers));
+                let destinations = plan
+                    .data
+                    .destinations
+                    .into_iter()
+                    .filter(|key| *key != Pubkey::default())
+                    .collect::<Vec<_>>();
+                if !destinations.is_empty() {
+                    authorization.constraints = ConstraintExpr::All(vec![
+                        authorization.constraints,
+                        ConstraintExpr::Constraint(Constraint::Recipient {
+                            principal: principal(destinations),
+                        }),
+                    ]);
+                }
+            }
             authorization.usage = usage;
             authorization.authority_kind = AuthorityKind::Derived {
                 parents: vec![parent],
@@ -354,6 +617,44 @@ impl Adapter for DelegationAdapter {
             };
             authorizations.push(authorization);
         }
+        if let Some(plan) = plan {
+            let now = state.unix_timestamp.ok_or(Error::InsufficientEvidence)?;
+            check_authority(&state.source, plan.owner)?;
+            let mut administrative = technical;
+            administrative.id = format!(
+                "{}:{}:{}:modify-authority",
+                context.program_id,
+                state.plan.as_ref().ok_or(Error::InsufficientEvidence)?.0,
+                plan.data.terms.created_at
+            );
+            administrative.resource = Resource {
+                namespace: "solana:authority-set".into(),
+                id: state
+                    .plan
+                    .as_ref()
+                    .ok_or(Error::InsufficientEvidence)?
+                    .0
+                    .to_string(),
+            };
+            administrative.subject = Subject::Resource(administrative.resource.clone());
+            administrative.principal = Principal::Identity(plan.owner.to_string());
+            administrative.capability = Capability::ModifyAuthority;
+            administrative.constraints = ConstraintExpr::True;
+            administrative.usage = UsageSemantics::Unlimited;
+            administrative.lifecycle =
+                if plan.status == 1 && plan.data.end_ts != 0 && now > plan.data.end_ts {
+                    Lifecycle::Suspended
+                } else {
+                    Lifecycle::Active {
+                        valid_from: None,
+                        valid_until: None,
+                    }
+                };
+            administrative.authority_kind = AuthorityKind::Administrative;
+            // ARM describes membership control; native edit restrictions remain in evidence.
+            administrative.observability = Observability::Partial;
+            authorizations.push(administrative);
+        }
         Ok(authorizations)
     }
 
@@ -363,19 +664,49 @@ impl Adapter for DelegationAdapter {
         state: &DelegationState,
         context: &Context,
     ) -> Result<Vec<AuthorizationChange>, Error> {
-        if instructions != [revoke(state)?] {
-            return Err(Error::UnsupportedOperation);
-        }
-        Ok(self
+        let before = self
             .compile_state(state, context)?
             .into_iter()
-            .filter(|authorization| {
+            .find(|authorization| {
                 matches!(authorization.authority_kind, AuthorityKind::Derived { .. })
             })
-            .map(|authorization| AuthorizationChange::Removed {
-                authorization: Box::new(authorization),
-            })
-            .collect())
+            .ok_or(Error::UnsupportedOperation)?;
+        let grant = delegation(state)?.ok_or(Error::UnsupportedOperation)?;
+        let plan = plan(state)?;
+        let (kind, _) = controls(state, &grant, plan.as_ref())?
+            .into_iter()
+            .find(|(_, instruction)| instructions == std::slice::from_ref(instruction))
+            .ok_or(Error::UnsupportedOperation)?;
+        if kind == ActionKind::Revoke {
+            return Ok(vec![AuthorizationChange::Removed {
+                authorization: Box::new(before),
+            }]);
+        }
+        let Delegation::Subscription(mut grant) = grant else {
+            return Err(Error::UnsupportedOperation);
+        };
+        let now = state.unix_timestamp.ok_or(Error::InsufficientEvidence)?;
+        let plan = plan.ok_or(Error::InsufficientEvidence)?;
+        grant.expires_at_ts = match kind {
+            ActionKind::Cancel => cancel_cutoff(&grant, &plan, now)?,
+            ActionKind::CancelNow => now,
+            ActionKind::Resume => 0,
+            _ => return Err(Error::UnsupportedOperation),
+        };
+        let mut after = before.clone();
+        let (_, usage, lifecycle) =
+            Delegation::Subscription(grant).terms(Some(now), Some(&plan))?;
+        after.usage = usage;
+        if !matches!(before.lifecycle, Lifecycle::Suspended) {
+            after.lifecycle = lifecycle;
+        }
+        if before == after {
+            return Ok(vec![]);
+        }
+        Ok(vec![AuthorizationChange::Changed {
+            before: Box::new(before),
+            after: Box::new(after),
+        }])
     }
 
     fn actions(
@@ -390,10 +721,15 @@ impl Adapter for DelegationAdapter {
         if !matches!(authorization.authority_kind, AuthorityKind::Derived { .. }) {
             return Ok(vec![]);
         }
-        Ok(vec![Action {
-            kind: ActionKind::Revoke,
-            authorization_id: authorization.id.clone(),
-            instructions: vec![revoke(state)?],
-        }])
+        let grant = delegation(state)?.ok_or(Error::UnsupportedOperation)?;
+        let plan = plan(state)?;
+        Ok(controls(state, &grant, plan.as_ref())?
+            .into_iter()
+            .map(|(kind, instruction)| Action {
+                kind,
+                authorization_id: authorization.id.clone(),
+                instructions: vec![instruction],
+            })
+            .collect())
     }
 }

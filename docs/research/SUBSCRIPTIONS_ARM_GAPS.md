@@ -2,7 +2,7 @@
 
 ARM reference: `3b91100314473b616b5fd6f77214c6b6282a1dfb`.
 Native baseline: [SUBSCRIPTIONS_SEMANTICS.md](SUBSCRIPTIONS_SEMANTICS.md).
-This representation review now includes fixed and recurring adapter conformance.
+This representation review now includes fixed, recurring and subscription adapter conformance.
 
 REPRESENTABLE means existing fields describe the fact. PARTIAL means description
 is possible but current evaluation or evidence does not prove the full effective
@@ -23,7 +23,7 @@ that would otherwise lie. No ARM change is proposed by this study.
 | Pending cancellation | REPRESENTABLE | Active until exclusive cutoff; native cancellation label stays in evidence, not Suspended while pulls remain valid |
 | Cancel-now joint approval | REPRESENTABLE | AllOf subscriber/owner principal for authority control, separate from their spending records |
 | Resume preserves consumption | REPRESENTABLE | Changed lifecycle with identical observed period usage; no invented reset |
-| Plan owner management | REPRESENTABLE | Separate Administrative ModifyAuthority/RevokeAuthority on scoped policy resources; never pretend every field or immutable term is editable |
+| Plan owner membership management | PARTIAL | Separate Administrative ModifyAuthority on the authority-set resource; native sunset/expiry edit restrictions stay in evidence. Partial output is not exact policy compilation |
 | Sponsor funds rent without control | REPRESENTABLE | Evidence and separate recovery permission if emitted; payer identity must not imply Spend or authority management |
 | Sunset preserves existing pulls | REPRESENTABLE | Current Spend remains active subject to finite end; new-grant management is a separate native fact |
 | Authority/delegation generation bindings | REPRESENTABLE | Raw evidence retains generation and derived grant IDs include the bound generation. Technical SPL approval survives authority closure, so its identity remains independent of that generation |
@@ -73,7 +73,12 @@ records separately. Expose only management actions proven by native round trips.
 
 Reuse the existing Catalyst ABI and evidence types. No new decoder framework,
 RPC provider, intent compiler or ARM abstraction is justified by this study.
-DelegationAdapter version 0.2 and its fixed/recurring goldens prove those two slices.
+DelegationAdapter version 0.3 adds subscription and plan evidence without changing ARM.
 Native revoke agrees with declared removal and preserves the shared token approval.
-Active derived records still evaluate to Unknown without lineage resolution. Subscription
-support remains a fixture gate; no ARM refinement has been justified.
+Active derived records still evaluate to Unknown without lineage resolution.
+subscriptions-plan-arm.json specifies shared principals/budget, recipient restriction
+and separate Partial plan membership administration. Native Cancel, CancelNow,
+Resume and terminal subscriber Revoke agree with declared Diff and recompilation.
+A cancellation that adds no tighter boundary has an empty semantic Diff even though
+native bytes change. Immediate cancellation at creation fits Lifecycle::Revoked;
+no new lifecycle state or ARM refinement is required. Live support is not claimed.

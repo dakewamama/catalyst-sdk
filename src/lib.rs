@@ -32,6 +32,9 @@ pub struct SourceRequirements {
 pub enum ActionKind {
     Revoke,
     ResetAuthority,
+    Cancel,
+    CancelNow,
+    Resume,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

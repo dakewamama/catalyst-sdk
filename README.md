@@ -127,18 +127,15 @@ bytes are reproduced by native initialization, minting and approval.
 
 ## Subscriptions delegations
 
-The native subscription lifecycle capture proves shared plan budgets, recipient
-restrictions, cancellation/resume, immediate cancellation and sunset behavior.
-Subscription semantic compilation remains pending; this fixture is not live support.
-
 subscriptions::DelegationAdapter uses the official subscriptions 0.5.0 account types and
-instruction builders for fixed and recurring delegations. DelegationState supplies the
-delegation, authority, canonical source token account, matching mint, keyed wallet
-observations and verified SPL program version.
+instruction builders for fixed, recurring and plan-backed subscription delegations.
+DelegationState supplies the delegation, authority, canonical source account, matching
+mint, keyed wallet observations and verified SPL program version. Subscriptions also
+require the current bound plan through DelegationState.plan; other kinds use None.
 Every account must come from the same observed bank. A deleted account must be explicitly
 observed; a missing account in an incomplete scan is insufficient evidence.
-Recurring projection also requires the observed bank's unix timestamp, as declared by
-source_requirements. Missing clock evidence fails closed. Adapter provenance is version 0.2;
+Recurring and subscription projection also require the observed bank's unix timestamp, as declared by
+source_requirements. Missing clock evidence fails closed. Adapter provenance is version 0.3;
 the previous FixedAdapter/FixedState names are replaced by this shared delegation API.
 
 The adapter emits the PDA's technical token allowance separately from the delegatee's
@@ -161,10 +158,32 @@ approval survives. Direct token revoke suspends the retained grant. Closing the 
 also suspends it; recreating the authority in the same slot preserves its generation
 binding, while recreating it in a later slot invalidates that binding.
 
+Subscriptions emit one shared principal/budget for the plan owner and allowed pullers,
+with an independent recipient constraint when the plan restricts destination owners.
+Pending cancellation remains active until its exclusive cutoff. Resume preserves
+period consumption. Sunset keeps existing subscriptions collectible while puller
+removal changes their principal set. Inclusive plan end caps cancellation at end plus one.
+
+Plan-owner membership administration is a separate Partial ModifyAuthority record,
+scoped to the plan's authority set. It does not promise arbitrary edits: sunset permits
+only removals, ownership and billing terms are immutable, and native end rules apply.
+No plan-edit action or permission compiler is exposed. A live active plan past its
+finite end cannot update membership; a sunset plan retains its removal path.
+
+Cancel, CancelNow, Resume and terminal subscriber Revoke use official native builders.
+CancelNow includes both subscriber and plan-owner signatures. Resume binds the observed
+cancellation cutoff. Native execution and recompilation agree with canonical declared
+Diff at the observed bank clock, including empty changes when the plan already imposes
+the cancellation cutoff. Execution at another clock requires fresh simulation/state;
+a declared Diff does not promise that a delayed transaction has the same result.
+
 Support is limited to the exact local Subscriptions and classic SPL ELF versions.
-Unknown account versions and malformed bindings fail closed. Subscriptions, Token-2022
-and program-controlled delegatees remain outside this slice. Both delegation kinds have
-raw native fixtures, complete ARM goldens and native revoke/Diff/recompilation tests.
+Unknown account versions and malformed bindings fail closed. Token-2022 and program
+controlled acting wallets remain unsupported. Missing plan evidence fails closed;
+an observed closed plan is unsupported rather than a fabricated merchant identity.
+Native global authority revoke, plan-edit actions and sponsor subscription recovery
+are not exposed. All three delegation kinds have native fixtures, ARM goldens and
+native control/Diff/recompilation tests.
 
 ## Checks
 

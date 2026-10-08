@@ -196,6 +196,14 @@ older PR prose describing offset 3 is superseded by current source.
 
 ## Verification scope
 
+October 8: the pinned program executes 41 subscription lifecycle transitions in
+tests/fixtures/subscriptions-lifecycle.json. DelegationAdapter 0.3 compiles the
+captured subscription and live plan into unchanged ARM 0.1. The complete semantic
+golden separates shared spending, recipient constraints and Partial membership
+administration. Native cancellation/resume/revoke tests compare declared Diff with
+execution and recompilation at the observed clock. Neither this proof nor the
+source study establishes current live deployment coverage.
+
 Read repository instructions, ADRs, dispatch, authority-relevant handlers/helpers,
 state, events, IDL, generated client slices, handwritten overlays, relevant native
 and client tests, fuzz invariants, changelog, security notes and relevant history.
