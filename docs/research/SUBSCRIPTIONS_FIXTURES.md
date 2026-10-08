@@ -1,8 +1,8 @@
 # Subscriptions fixture contract
 
 Baseline and verified semantics: [SUBSCRIPTIONS_SEMANTICS.md](SUBSCRIPTIONS_SEMANTICS.md).
-These are fixtures required before expanding adapter claims. Fixed delegation has
-native and semantic goldens; recurring and subscription cases remain uncaptured.
+These are fixtures required before expanding adapter claims. Fixed and recurring
+delegations have native and semantic goldens; subscription cases remain uncaptured.
 Upstream test paths refer to the pinned source in that document.
 
 Every captured case must include program/token ELF hashes, source revisions,
@@ -15,8 +15,8 @@ state unchanged. Unsupported versions and absent dependency evidence are separat
 | --- | --- | --- |
 | Technical authority | Initialize; ATA delegates finite `u64::MAX` to PDA, without granting that amount to a merchant | `test_initialize_subscription_authority.rs`, `test_revoke_subscription_authority.rs` |
 | Fixed | Create cap 100; pull 40 to a third party; remaining 60; pull 61 fails with native error 300 and leaves all accounts unchanged; delegator revokes while the shared token approval remains | Captured in `tests/fixtures/subscriptions-fixed.json` with pinned SBF and Token ELF hashes; upstream: `test_create_fixed_delegation.rs`, `test_transfer_fixed_delegation.rs`, `test_revoke_delegation.rs` |
-| Recurring | Cap 100, period 30; pull 60; remaining 40; exceed rejected; skip periods and prove only one current cap, not accumulation | `test_transfer_recurring_delegation.rs` |
-| Finite boundary | Test expiry minus one, expiry and expiry plus one; exhausted final period never receives another cap | Same file; host helper `catch_up_at_exact_expiry_boundary_succeeds` already executed |
+| Recurring | Cap 100, period 30; pull 60; remaining 40; exceed rejected; skip periods and prove only one current cap, not accumulation | Captured in `tests/fixtures/subscriptions-recurring.json`; upstream: `test_transfer_recurring_delegation.rs` |
+| Finite boundary | Test expiry minus one, expiry and expiry plus one; exhausted final period never receives another cap | Captured in the recurring fixture; host helper `catch_up_at_exact_expiry_boundary_succeeds` also executed |
 | Subscription | Owner plus allowed puller share one cap; destination wallet whitelist checked; arbitrary third party caller rejected | `test_transfer_subscription.rs` |
 | Pending cancellation | Cancel midway; cutoff at period boundary; pull remains possible before cutoff and fails at cutoff | `test_cancel_subscription.rs`, `test_transfer_subscription.rs` |
 | Resume | Resume pending cancellation with observed cutoff; consumed amount and period preserved; stale expiry/generation rejected | `test_resume_subscription.rs` |
@@ -68,5 +68,16 @@ native revoke executes and recompiles to the surviving technical approval.
 
 Additional native tests prove sponsored rent return, unsigned rejection, inclusive
 expiry, zero/maximum expiry, token revoke, and authority closure/recreation in the
-same versus a later slot. Recurring boundaries and subscriptions still need native
-fixtures. Platform-tools v1.54 built the pinned program for this capture.
+same versus a later slot. Platform-tools v1.54 built the pinned program for this capture.
+
+The recurring capture reuses the same source/client revisions and ELF hashes. Its
+13 transitions prove a 100-unit cap with a 30-second period, rejected overspend,
+catch-up after three skipped periods without accumulated allowance, final-period
+consumption before and at inclusive expiry, expiry rejection and delegator revoke.
+Rejected transfers leave every native account unchanged, including a failed rollover.
+subscriptions-recurring-arm.json specifies the separate technical approval and derived
+recurring grant after a 60-unit pull. Projection derives an unpersisted rollover from
+the bank clock; it does not pretend a rejected transaction committed that rollover.
+Native tests also create an unbounded grant with a future start and prove its time gate.
+DelegationAdapter version 0.2 handles both kinds and proves revoke/Diff/recompilation
+for each. Subscription, cancellation and resume captures are the next fixture gate.

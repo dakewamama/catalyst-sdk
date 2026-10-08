@@ -125,13 +125,17 @@ Diff agrees with native execution and recompilation; Permanent Delegate survives
 Permanent Delegate management actions are not exposed yet. Golden account and mint
 bytes are reproduced by native initialization, minting and approval.
 
-## Subscriptions fixed delegation
+## Subscriptions delegations
 
-subscriptions::FixedAdapter uses the official subscriptions 0.5.0 account types and
-instruction builders. FixedState supplies the delegation, authority, canonical source
-token account, matching mint, keyed wallet observations and verified SPL program version.
+subscriptions::DelegationAdapter uses the official subscriptions 0.5.0 account types and
+instruction builders for fixed and recurring delegations. DelegationState supplies the
+delegation, authority, canonical source token account, matching mint, keyed wallet
+observations and verified SPL program version.
 Every account must come from the same observed bank. A deleted account must be explicitly
 observed; a missing account in an incomplete scan is insufficient evidence.
+Recurring projection also requires the observed bank's unix timestamp, as declared by
+source_requirements. Missing clock evidence fails closed. Adapter provenance is version 0.2;
+the previous FixedAdapter/FixedState names are replaced by this shared delegation API.
 
 The adapter emits the PDA's technical token allowance separately from the delegatee's
 derived fixed allowance. A 100-unit grant after a 40-unit pull has 60 remaining; the
@@ -140,16 +144,23 @@ exclusive boundary, with zero and i64::MAX handled without overflow. ARM remains
 Its generic evaluator returns Unknown for active derived records until lineage evaluation
 is implemented; these records do not promise balance or transaction success.
 
-The delegator's native Revoke closes only the fixed delegation and refunds its recorded
+Recurring state projects its per-period cap and remaining allowance at the observed clock.
+Skipped periods grant one current cap, without accumulation. At inclusive finite expiry,
+the final period remains in force rather than opening another allowance. ARM's generic
+evaluator returns Unknown at that period's ordinary half-open boundary, even if the native
+final allowance remains spendable. Projection preserves the native period and budget.
+An unrepresentable period end returns Unsupported rather than overflowing.
+
+The delegator's native Revoke closes only the selected delegation and refunds its recorded
 payer. The declared removal matches native execution and recompilation; shared token
 approval survives. Direct token revoke suspends the retained grant. Closing the authority
 also suspends it; recreating the authority in the same slot preserves its generation
 binding, while recreating it in a later slot invalidates that binding.
 
 Support is limited to the exact local Subscriptions and classic SPL ELF versions.
-Unknown account versions and malformed bindings fail closed. Recurring delegations,
-subscriptions, Token-2022 and program-controlled delegatees remain outside this slice.
-The raw native fixture, complete ARM golden and Mollusk tests prove the supported path.
+Unknown account versions and malformed bindings fail closed. Subscriptions, Token-2022
+and program-controlled delegatees remain outside this slice. Both delegation kinds have
+raw native fixtures, complete ARM goldens and native revoke/Diff/recompilation tests.
 
 ## Checks
 

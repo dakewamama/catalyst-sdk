@@ -2,7 +2,7 @@
 
 ARM reference: `3b91100314473b616b5fd6f77214c6b6282a1dfb`.
 Native baseline: [SUBSCRIPTIONS_SEMANTICS.md](SUBSCRIPTIONS_SEMANTICS.md).
-This is a representation review, not implemented adapter conformance.
+This representation review now includes fixed and recurring adapter conformance.
 
 REPRESENTABLE means existing fields describe the fact. PARTIAL means description
 is possible but current evaluation or evidence does not prove the full effective
@@ -46,9 +46,13 @@ translated to valid_until 91, ARM's generic recurring window still ends at 90,
 so its evaluator cannot confirm availability there. The safe result is Unknown,
 not a false denial presented as exact native behavior and not a new period at 90.
 
-This demonstrates an evaluation limit, not a proven schema impossibility.
-An SVM-captured state plus exact expected ARM output is still required before
-proposing a general model refinement. It does not justify editing ARM now.
+The native SVM capture in subscriptions-recurring.json now reproduces this rule
+with absolute start 1800000000, period 30 and expiry 1800000150. At expiry the
+native program permits the remaining 40 units from period start 1800000120;
+the adapter retains that period instead of creating a cap at 1800000150.
+The complete ARM golden and boundary tests preserve the native facts while
+generic availability remains Unknown there. This is an evaluation limit,
+not a proven schema impossibility, and does not justify editing ARM.
 
 ## Failures requiring schema change
 
@@ -69,6 +73,7 @@ records separately. Expose only management actions proven by native round trips.
 
 Reuse the existing Catalyst ABI and evidence types. No new decoder framework,
 RPC provider, intent compiler or ARM abstraction is justified by this study.
-The fixed adapter and its semantic golden now prove that first slice. Active derived
-records still evaluate to Unknown without lineage resolution. Recurring and subscription
-support remain fixture gates; no ARM refinement has been justified.
+DelegationAdapter version 0.2 and its fixed/recurring goldens prove those two slices.
+Native revoke agrees with declared removal and preserves the shared token approval.
+Active derived records still evaluate to Unknown without lineage resolution. Subscription
+support remains a fixture gate; no ARM refinement has been justified.

@@ -23,7 +23,7 @@ fn context() -> Context {
             protocol: "subscriptions".into(),
             deployment: DEPLOYMENT.into(),
             program_version: PROGRAM_VERSION.into(),
-            adapter_version: "0.1".into(),
+            adapter_version: ADAPTER_VERSION.into(),
         },
         evidence: EvidenceBundle {
             references: vec!["fixture:subscriptions-fixed.json:2:after".into()],
@@ -44,7 +44,11 @@ fn trace() -> serde_json::Value {
 }
 
 fn accounts(position: usize) -> Vec<(Pubkey, Account)> {
-    trace()["transitions"][position]["after"]
+    decode_accounts(&trace()["transitions"][position]["after"])
+}
+
+fn decode_accounts(value: &serde_json::Value) -> Vec<(Pubkey, Account)> {
+    value
         .as_array()
         .unwrap()
         .iter()
@@ -62,9 +66,297 @@ fn accounts(position: usize) -> Vec<(Pubkey, Account)> {
         .collect()
 }
 
+mod recurring {
+    use super::*;
+    use arm::{Constraint, ConstraintExpr, UsageSemantics};
+    use subscriptions::{
+        accounts::RecurringDelegation,
+        instructions::{CreateRecurringDelegation, CreateRecurringDelegationInstructionArgs},
+        types::CreateRecurringDelegationData,
+    };
+
+    fn trace() -> serde_json::Value {
+        serde_json::from_str(include_str!("fixtures/subscriptions-recurring.json")).unwrap()
+    }
+
+    fn accounts(position: usize, phase: &str) -> Vec<(Pubkey, Account)> {
+        decode_accounts(&trace()["transitions"][position][phase])
+    }
+
+    fn state(accounts: &[(Pubkey, Account)], now: i64) -> DelegationState {
+        let owner = Pubkey::new_from_array([1; 32]);
+        let delegate = Pubkey::new_from_array([2; 32]);
+        let mint = Pubkey::new_from_array([3; 32]);
+        let (authority, _) = SubscriptionAuthority::find_pda(&owner, &mint);
+        let (delegation, _) = RecurringDelegation::find_pda(&authority, &owner, &delegate, 0);
+        let source =
+            decode_instruction(&trace()["transitions"][0]["instruction"]).accounts[3].pubkey;
+        let account = |key| {
+            accounts
+                .iter()
+                .find(|(address, _)| *address == key)
+                .unwrap()
+                .clone()
+        };
+        DelegationState {
+            delegation: account(delegation),
+            authority: account(authority),
+            source: AuthorityState {
+                address: source,
+                account: account(source).1,
+                authorities: vec![account(owner), account(delegate)],
+            },
+            mint: account(mint),
+            token_program_version: sdk::spl::PROGRAM_VERSION.into(),
+            unix_timestamp: Some(now),
+        }
+    }
+
+    fn context(position: usize, phase: &str) -> Context {
+        let mut context = super::context();
+        context.evidence = EvidenceBundle {
+            references: vec![
+                format!("fixture:subscriptions-recurring.json:{position}:{phase}"),
+                format!("fixture:subscriptions-recurring.json:{position}:clock"),
+            ],
+            observed_at: format!("fixture:slot:{}", 100 + position),
+        };
+        context
+    }
+
+    #[test]
+    fn native_state_matches_recurring_golden_and_requires_clock() {
+        let state = state(&accounts(2, "after"), 1_800_000_000);
+        let context = context(2, "after");
+        let actual = sdk::compile_state(&DelegationAdapter, &state, &context).unwrap();
+        let expected: Vec<arm::Authorization> =
+            serde_json::from_str(include_str!("fixtures/subscriptions-recurring-arm.json"))
+                .unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(
+            actual,
+            sdk::compile_state(&DelegationAdapter, &state, &context).unwrap()
+        );
+        assert!(DelegationAdapter.source_requirements(&state).clock);
+        assert_eq!(
+            actual[1].availability_at(1_800_000_000).unwrap(),
+            Availability::Unknown
+        );
+        let mut state = state;
+        state.unix_timestamp = None;
+        assert_eq!(
+            sdk::compile_state(&DelegationAdapter, &state, &context),
+            Err(Error::InsufficientEvidence)
+        );
+        let mut context = context;
+        context.native.adapter_version = "0.1".into();
+        assert_eq!(
+            sdk::compile_state(&DelegationAdapter, &state, &context),
+            Err(Error::UnsupportedVersion)
+        );
+    }
+
+    #[test]
+    fn projection_matches_native_rollover_and_inclusive_expiry() {
+        let trace = trace();
+        for (position, phase, start, remaining, availability) in [
+            (2, "after", 0, 40, Availability::Unknown),
+            (4, "before", 90, 100, Availability::Unknown),
+            (4, "after", 90, 100, Availability::Unknown),
+            (5, "after", 90, 0, Availability::Inactive),
+            (7, "before", 120, 100, Availability::Unknown),
+            (7, "after", 120, 40, Availability::Unknown),
+            (8, "before", 120, 40, Availability::Unknown),
+            (8, "after", 120, 0, Availability::Unknown),
+            (10, "after", 120, 0, Availability::Inactive),
+        ] {
+            let now = trace["transitions"][position]["clock"]["unix_timestamp"]
+                .as_i64()
+                .unwrap();
+            let state = state(&accounts(position, phase), now);
+            let projected =
+                sdk::compile_state(&DelegationAdapter, &state, &context(position, phase)).unwrap();
+            let grant = RecurringDelegation::from_bytes(&state.delegation.1.data).unwrap();
+            assert_eq!(
+                projected[1].usage,
+                UsageSemantics::Recurring {
+                    period_seconds: 30,
+                    anchor_unix_seconds: grant.current_period_start_ts,
+                    observed_period_start: 1_800_000_000 + start,
+                    remaining: Some(remaining),
+                },
+                "{position}:{phase}"
+            );
+            assert_eq!(
+                projected[1].constraints,
+                ConstraintExpr::Constraint(Constraint::AmountAtMost {
+                    asset: arm::Resource {
+                        namespace: "solana:mint".into(),
+                        id: state.mint.0.to_string()
+                    },
+                    amount: 100,
+                })
+            );
+            assert_eq!(projected[1].availability_at(now).unwrap(), availability);
+        }
+    }
+
+    #[test]
+    fn recurring_revoke_executes_and_matches_declared_removal() {
+        let mut accounts = accounts(2, "after");
+        let vm = vm(&mut accounts);
+        let state = state(&accounts, vm.sysvars.clock.unix_timestamp);
+        let context = context(2, "after");
+        let before = sdk::compile_state(&DelegationAdapter, &state, &context).unwrap();
+        let action = sdk::actions(&DelegationAdapter, &before[1], &state, &context)
+            .unwrap()
+            .remove(0);
+        assert_eq!(
+            action.instructions,
+            vec![decode_instruction(
+                &trace()["transitions"][12]["instruction"]
+            )]
+        );
+        assert_eq!(
+            sdk::diff_transaction(&DelegationAdapter, &action.instructions, &state, &context)
+                .unwrap(),
+            vec![AuthorizationChange::Removed {
+                authorization: Box::new(before[1].clone())
+            }]
+        );
+        let result = vm.process_instruction(&action.instructions[0], &accounts);
+        assert_eq!(result.raw_result, Ok(()));
+        assert_eq!(
+            sdk::compile_state(
+                &DelegationAdapter,
+                &self::state(&result.resulting_accounts, vm.sysvars.clock.unix_timestamp),
+                &context
+            )
+            .unwrap(),
+            vec![before[0].clone()]
+        );
+        let mut unsigned = action.instructions[0].clone();
+        unsigned.accounts[0].is_signer = false;
+        let rejected = vm.process_instruction(&unsigned, &accounts);
+        assert!(rejected.raw_result.is_err());
+        assert_eq!(rejected.resulting_accounts, accounts);
+    }
+
+    #[test]
+    fn native_future_start_and_unbounded_recurrence() {
+        let mut accounts = accounts(0, "after");
+        let mut vm = vm(&mut accounts);
+        let initial = state(&accounts, 1_800_000_000);
+        let create = CreateRecurringDelegation {
+            delegator: initial.source.authorities[0].0,
+            subscription_authority: initial.authority.0,
+            delegation_account: initial.delegation.0,
+            delegatee: initial.source.authorities[1].0,
+            system_program: Pubkey::default(),
+            payer: None,
+        }
+        .instruction(CreateRecurringDelegationInstructionArgs {
+            recurring_delegation: CreateRecurringDelegationData {
+                nonce: 0,
+                amount_per_period: 100,
+                period_length_s: 30,
+                start_ts: 1_800_000_030,
+                expiry_ts: 0,
+                expected_subscription_authority_init_id: 100,
+            },
+        });
+        let created = vm.process_instruction(&create, &accounts);
+        assert_eq!(created.raw_result, Ok(()));
+        let trace = trace();
+        let transfer = decode_instruction(&trace["transitions"][2]["instruction"]);
+        let mut context = super::context();
+        context.evidence.references =
+            vec!["test:native_future_start_and_unbounded_recurrence".into()];
+        let projected = sdk::compile_state(
+            &DelegationAdapter,
+            &state(&created.resulting_accounts, 1_800_000_000),
+            &context,
+        )
+        .unwrap();
+        assert_eq!(
+            projected[1].availability_at(1_800_000_000).unwrap(),
+            Availability::Inactive
+        );
+        let early = vm.process_instruction(&transfer, &created.resulting_accounts);
+        assert!(early.raw_result.is_err());
+        assert_eq!(early.resulting_accounts, created.resulting_accounts);
+        vm.sysvars.clock.unix_timestamp = 1_800_000_090;
+        let current = state(&created.resulting_accounts, vm.sysvars.clock.unix_timestamp);
+        let projected = sdk::compile_state(&DelegationAdapter, &current, &context).unwrap();
+        assert_eq!(
+            projected[1].usage,
+            UsageSemantics::Recurring {
+                period_seconds: 30,
+                anchor_unix_seconds: 1_800_000_030,
+                observed_period_start: 1_800_000_090,
+                remaining: Some(100),
+            }
+        );
+        let pulled = vm.process_instruction(&transfer, &created.resulting_accounts);
+        assert_eq!(pulled.raw_result, Ok(()));
+        let grant = RecurringDelegation::from_bytes(
+            &pulled
+                .resulting_accounts
+                .iter()
+                .find(|(key, _)| *key == current.delegation.0)
+                .unwrap()
+                .1
+                .data,
+        )
+        .unwrap();
+        assert_eq!(grant.current_period_start_ts, 1_800_000_090);
+        assert_eq!(grant.amount_pulled_in_period, 60);
+        vm.sysvars.clock.unix_timestamp = i64::MAX;
+        assert_eq!(
+            sdk::compile_state(
+                &DelegationAdapter,
+                &state(&created.resulting_accounts, vm.sysvars.clock.unix_timestamp),
+                &context,
+            ),
+            Err(Error::UnsupportedOperation)
+        );
+    }
+
+    #[test]
+    fn malformed_recurring_state_fails_closed() {
+        let original = state(&accounts(2, "after"), 1_800_000_000);
+        for (offset, bytes) in [
+            (179, 0_u64.to_le_bytes()),
+            (179, u64::MAX.to_le_bytes()),
+            (203, 101_u64.to_le_bytes()),
+        ] {
+            let mut state = self::state(&accounts(2, "after"), 1_800_000_000);
+            state.delegation.1.data[offset..offset + 8].copy_from_slice(&bytes);
+            assert!(matches!(
+                sdk::compile_state(&DelegationAdapter, &state, &context(2, "after")),
+                Err(Error::InvalidState(_))
+            ));
+        }
+        let mut state = original;
+        state.delegation.1.data[1] = 2;
+        assert_eq!(
+            sdk::compile_state(&DelegationAdapter, &state, &context(2, "after")),
+            Err(Error::UnsupportedVersion)
+        );
+        state.delegation.1.data[1] = 1;
+        state.delegation.1.data.pop();
+        assert!(matches!(
+            sdk::compile_state(&DelegationAdapter, &state, &context(2, "after")),
+            Err(Error::InvalidState(_))
+        ));
+    }
+}
+
 fn instruction(position: usize) -> Instruction {
-    let trace = trace();
-    let value = &trace["transitions"][position]["instruction"];
+    decode_instruction(&trace()["transitions"][position]["instruction"])
+}
+
+fn decode_instruction(value: &serde_json::Value) -> Instruction {
     Instruction {
         program_id: value["program"].as_str().unwrap().parse().unwrap(),
         data: bytes(value["data"].as_str().unwrap()),
@@ -81,7 +373,7 @@ fn instruction(position: usize) -> Instruction {
     }
 }
 
-fn state(accounts: &[(Pubkey, Account)]) -> FixedState {
+fn state(accounts: &[(Pubkey, Account)]) -> DelegationState {
     let owner = Pubkey::new_from_array([1; 32]);
     let delegate = Pubkey::new_from_array([2; 32]);
     let mint = Pubkey::new_from_array([3; 32]);
@@ -95,7 +387,7 @@ fn state(accounts: &[(Pubkey, Account)]) -> FixedState {
             .unwrap()
             .clone()
     };
-    FixedState {
+    DelegationState {
         delegation: account(delegation),
         authority: account(authority),
         source: AuthorityState {
@@ -105,6 +397,7 @@ fn state(accounts: &[(Pubkey, Account)]) -> FixedState {
         },
         mint: account(mint),
         token_program_version: sdk::spl::PROGRAM_VERSION.into(),
+        unix_timestamp: None,
     }
 }
 
@@ -130,13 +423,13 @@ fn vm(accounts: &mut Vec<(Pubkey, Account)>) -> Mollusk {
 fn native_state_matches_semantic_golden_and_preserves_lineage() {
     let state = state(&accounts(2));
     let context = context();
-    let actual = sdk::compile_state(&FixedAdapter, &state, &context).unwrap();
+    let actual = sdk::compile_state(&DelegationAdapter, &state, &context).unwrap();
     let expected: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/subscriptions-fixed-arm.json")).unwrap();
     assert_eq!(serde_json::to_value(&actual).unwrap(), expected);
     assert_eq!(
         actual,
-        sdk::compile_state(&FixedAdapter, &state, &context).unwrap()
+        sdk::compile_state(&DelegationAdapter, &state, &context).unwrap()
     );
     assert_eq!(
         actual[0].availability_at(1_800_000_100).unwrap(),
@@ -150,7 +443,7 @@ fn native_state_matches_semantic_golden_and_preserves_lineage() {
         actual[1].availability_at(1_800_000_101).unwrap(),
         Availability::Inactive
     );
-    let requirements = FixedAdapter.source_requirements(&state);
+    let requirements = DelegationAdapter.source_requirements(&state);
     assert!(!requirements.clock);
     assert_eq!(
         requirements.accounts,
@@ -171,16 +464,18 @@ fn adapter_revoke_executes_and_matches_declared_removal() {
     let vm = vm(&mut accounts);
     let state = state(&accounts);
     let context = context();
-    let before = sdk::compile_state(&FixedAdapter, &state, &context).unwrap();
-    assert!(sdk::actions(&FixedAdapter, &before[0], &state, &context)
-        .unwrap()
-        .is_empty());
-    let action = sdk::actions(&FixedAdapter, &before[1], &state, &context)
+    let before = sdk::compile_state(&DelegationAdapter, &state, &context).unwrap();
+    assert!(
+        sdk::actions(&DelegationAdapter, &before[0], &state, &context)
+            .unwrap()
+            .is_empty()
+    );
+    let action = sdk::actions(&DelegationAdapter, &before[1], &state, &context)
         .unwrap()
         .remove(0);
     assert_eq!(action.instructions, vec![instruction(4)]);
     let declared =
-        sdk::diff_transaction(&FixedAdapter, &action.instructions, &state, &context).unwrap();
+        sdk::diff_transaction(&DelegationAdapter, &action.instructions, &state, &context).unwrap();
     assert_eq!(
         declared,
         vec![AuthorizationChange::Removed {
@@ -190,7 +485,7 @@ fn adapter_revoke_executes_and_matches_declared_removal() {
     let result = vm.process_instruction(&action.instructions[0], &accounts);
     assert_eq!(result.raw_result, Ok(()));
     let after = sdk::compile_state(
-        &FixedAdapter,
+        &DelegationAdapter,
         &self::state(&result.resulting_accounts),
         &context,
     )
@@ -198,16 +493,21 @@ fn adapter_revoke_executes_and_matches_declared_removal() {
     assert_eq!(after, vec![before[0].clone()]);
     assert_eq!(
         after,
-        sdk::compile_state(&FixedAdapter, &self::state(&self::accounts(4)), &context).unwrap()
+        sdk::compile_state(
+            &DelegationAdapter,
+            &self::state(&self::accounts(4)),
+            &context
+        )
+        .unwrap()
     );
     let mut stale = before[1].clone();
     stale.id.push_str(":stale");
     assert_eq!(
-        sdk::actions(&FixedAdapter, &stale, &state, &context),
+        sdk::actions(&DelegationAdapter, &stale, &state, &context),
         Err(Error::InvalidProjection)
     );
     assert_eq!(
-        sdk::diff_transaction(&FixedAdapter, &[instruction(2)], &state, &context),
+        sdk::diff_transaction(&DelegationAdapter, &[instruction(2)], &state, &context),
         Err(Error::UnsupportedOperation)
     );
 }
@@ -258,8 +558,8 @@ fn sponsored_grant_revoke_returns_rent_to_recorded_payer() {
     let created = vm.process_instruction(&create, &accounts);
     assert_eq!(created.raw_result, Ok(()));
     let state = state(&created.resulting_accounts);
-    let before = sdk::compile_state(&FixedAdapter, &state, &context()).unwrap();
-    let action = sdk::actions(&FixedAdapter, &before[1], &state, &context())
+    let before = sdk::compile_state(&DelegationAdapter, &state, &context()).unwrap();
+    let action = sdk::actions(&DelegationAdapter, &before[1], &state, &context())
         .unwrap()
         .remove(0);
     assert_eq!(
@@ -280,7 +580,7 @@ fn sponsored_grant_revoke_returns_rent_to_recorded_payer() {
     );
     assert_eq!(
         sdk::compile_state(
-            &FixedAdapter,
+            &DelegationAdapter,
             &self::state(&result.resulting_accounts),
             &context()
         )
@@ -294,7 +594,7 @@ fn native_token_revoke_suspends_grant_without_deleting_it() {
     let mut accounts = accounts(2);
     let vm = vm(&mut accounts);
     let state = state(&accounts);
-    let before = sdk::compile_state(&FixedAdapter, &state, &context()).unwrap();
+    let before = sdk::compile_state(&DelegationAdapter, &state, &context()).unwrap();
     let revoke = spl_token_interface::instruction::revoke(
         &token::ID,
         &state.source.address,
@@ -305,7 +605,7 @@ fn native_token_revoke_suspends_grant_without_deleting_it() {
     let result = vm.process_instruction(&revoke, &accounts);
     assert_eq!(result.raw_result, Ok(()));
     let after = sdk::compile_state(
-        &FixedAdapter,
+        &DelegationAdapter,
         &self::state(&result.resulting_accounts),
         &context(),
     )
@@ -325,7 +625,7 @@ fn native_authority_incarnation_controls_existing_grant() {
         let mut accounts = accounts(2);
         let mut vm = vm(&mut accounts);
         let state = state(&accounts);
-        let before = sdk::compile_state(&FixedAdapter, &state, &context()).unwrap();
+        let before = sdk::compile_state(&DelegationAdapter, &state, &context()).unwrap();
         let close = CloseSubscriptionAuthority {
             user: state.source.authorities[0].0,
             subscription_authority: state.authority.0,
@@ -335,7 +635,7 @@ fn native_authority_incarnation_controls_existing_grant() {
         let closed = vm.process_instruction(&close, &accounts);
         assert_eq!(closed.raw_result, Ok(()));
         let inactive = sdk::compile_state(
-            &FixedAdapter,
+            &DelegationAdapter,
             &self::state(&closed.resulting_accounts),
             &context(),
         )
@@ -346,7 +646,7 @@ fn native_authority_incarnation_controls_existing_grant() {
         let reopened = vm.process_instruction(&instruction(0), &closed.resulting_accounts);
         assert_eq!(reopened.raw_result, Ok(()));
         let after = sdk::compile_state(
-            &FixedAdapter,
+            &DelegationAdapter,
             &self::state(&reopened.resulting_accounts),
             &context(),
         )
@@ -393,7 +693,7 @@ fn native_zero_and_maximum_expiry_have_no_exclusive_boundary() {
         let created = vm.process_instruction(&create, &accounts);
         assert_eq!(created.raw_result, Ok(()));
         let projected = sdk::compile_state(
-            &FixedAdapter,
+            &DelegationAdapter,
             &self::state(&created.resulting_accounts),
             &context(),
         )
@@ -427,7 +727,7 @@ fn missing_or_ambiguous_controller_evidence_fails_closed() {
     let mut state = state(&accounts(2));
     state.source.authorities.pop();
     assert_eq!(
-        sdk::compile_state(&FixedAdapter, &state, &context()),
+        sdk::compile_state(&DelegationAdapter, &state, &context()),
         Err(Error::InsufficientEvidence)
     );
     state.source.authorities = self::state(&accounts(2)).source.authorities;
@@ -436,13 +736,13 @@ fn missing_or_ambiguous_controller_evidence_fails_closed() {
         .authorities
         .push(state.source.authorities[1].clone());
     assert!(matches!(
-        sdk::compile_state(&FixedAdapter, &state, &context()),
+        sdk::compile_state(&DelegationAdapter, &state, &context()),
         Err(Error::InvalidState(_))
     ));
     state.source.authorities.pop();
     state.source.authorities[1].1.owner = SUBSCRIPTIONS_ID;
     assert_eq!(
-        sdk::compile_state(&FixedAdapter, &state, &context()),
+        sdk::compile_state(&DelegationAdapter, &state, &context()),
         Err(Error::UnsupportedOperation)
     );
 }
@@ -453,50 +753,52 @@ fn unknown_versions_and_malformed_native_state_fail_closed() {
     let mut context = context();
     context.native.program_version = "future".into();
     assert_eq!(
-        sdk::compile_state(&FixedAdapter, &state, &context),
+        sdk::compile_state(&DelegationAdapter, &state, &context),
         Err(Error::UnsupportedVersion)
     );
     context = self::context();
     context.evidence.references.clear();
     assert_eq!(
-        sdk::compile_state(&FixedAdapter, &state, &context),
+        sdk::compile_state(&DelegationAdapter, &state, &context),
         Err(Error::InsufficientEvidence)
     );
     let mut state = self::state(&accounts(2));
     state.token_program_version = "future".into();
     assert_eq!(
-        sdk::compile_state(&FixedAdapter, &state, &self::context()),
+        sdk::compile_state(&DelegationAdapter, &state, &self::context()),
         Err(Error::UnsupportedVersion)
     );
     state.token_program_version = sdk::spl::PROGRAM_VERSION.into();
     state.delegation.1.data[1] = 2;
     assert_eq!(
-        sdk::compile_state(&FixedAdapter, &state, &self::context()),
+        sdk::compile_state(&DelegationAdapter, &state, &self::context()),
         Err(Error::UnsupportedVersion)
     );
     for data in [vec![], vec![2], vec![2, 1], vec![0; 187], vec![2; 188]] {
         state.delegation.1.data = data;
         assert!(matches!(
-            sdk::compile_state(&FixedAdapter, &state, &self::context()),
-            Err(Error::InvalidState(_)) | Err(Error::UnsupportedVersion)
+            sdk::compile_state(&DelegationAdapter, &state, &self::context()),
+            Err(Error::InvalidState(_))
+                | Err(Error::UnsupportedVersion)
+                | Err(Error::UnsupportedOperation)
         ));
     }
     state = self::state(&accounts(2));
     state.delegation.1.owner = token::ID;
     assert!(matches!(
-        sdk::compile_state(&FixedAdapter, &state, &self::context()),
+        sdk::compile_state(&DelegationAdapter, &state, &self::context()),
         Err(Error::InvalidState(_))
     ));
     state = self::state(&accounts(2));
     state.authority.1.data.truncate(105);
     assert!(matches!(
-        sdk::compile_state(&FixedAdapter, &state, &self::context()),
+        sdk::compile_state(&DelegationAdapter, &state, &self::context()),
         Err(Error::InvalidState(_))
     ));
     state = self::state(&accounts(2));
     state.mint.0 = Pubkey::new_from_array([7; 32]);
     assert!(matches!(
-        sdk::compile_state(&FixedAdapter, &state, &self::context()),
+        sdk::compile_state(&DelegationAdapter, &state, &self::context()),
         Err(Error::InvalidState(_))
     ));
 }

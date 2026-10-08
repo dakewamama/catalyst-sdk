@@ -23,12 +23,12 @@
           "namespace": "solana:mint",
           "id": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8"
         },
-        "amount": 18446744073709551575
+        "amount": 18446744073709551555
       }
     },
     "usage": {
       "kind": "cumulative",
-      "remaining": 18446744073709551575
+      "remaining": 18446744073709551555
     },
     "lifecycle": {
       "kind": "active",
@@ -43,9 +43,10 @@
     "observability": "exact",
     "evidence": {
       "references": [
-        "fixture:subscriptions-fixed.json:2:after"
+        "fixture:subscriptions-recurring.json:2:after",
+        "fixture:subscriptions-recurring.json:2:clock"
       ],
-      "observed_at": "fixture:slot:100"
+      "observed_at": "fixture:slot:102"
     },
     "native_context": {
       "protocol": "subscriptions",
@@ -78,17 +79,20 @@
           "namespace": "solana:mint",
           "id": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8"
         },
-        "amount": 60
+        "amount": 100
       }
     },
     "usage": {
-      "kind": "cumulative",
-      "remaining": 60
+      "kind": "recurring",
+      "period_seconds": 30,
+      "anchor_unix_seconds": 1800000000,
+      "observed_period_start": 1800000000,
+      "remaining": 40
     },
     "lifecycle": {
       "kind": "active",
-      "valid_from": null,
-      "valid_until": 1800000101
+      "valid_from": 1800000000,
+      "valid_until": 1800000151
     },
     "delegability": "unknown",
     "authority_kind": {
@@ -101,9 +105,10 @@
     "observability": "exact",
     "evidence": {
       "references": [
-        "fixture:subscriptions-fixed.json:2:after"
+        "fixture:subscriptions-recurring.json:2:after",
+        "fixture:subscriptions-recurring.json:2:clock"
       ],
-      "observed_at": "fixture:slot:100"
+      "observed_at": "fixture:slot:102"
     },
     "native_context": {
       "protocol": "subscriptions",

@@ -157,8 +157,28 @@
   Token/mint fixture data is harness-installed; authority and grant are program-created.
 - Reuse: DEPEND official client builders and Mollusk. No upstream source copied.
   This is local protocol evidence, not live deployment support.
-- FixedAdapter now uses the same official client for production decoding and revoke.
+- DelegationAdapter uses the same official client for production decoding and revoke.
   subscriptions-fixed-arm.json independently specifies the two expected ARM records.
   Native tests verify canonical revoke/Diff/recompilation, sponsored rent refunds,
   expiry boundaries, unsigned failures, token revoke and authority incarnation behavior.
   ARM is unchanged; derived availability remains conservatively Unknown.
+
+## Subscriptions recurring-delegation fixture
+
+- Same official repository, MIT license, source/client revisions and ELF hashes as
+  the fixed fixture above. EXECUTED LOCALLY through Mollusk with raw before/after
+  accounts, instruction metadata, clock evidence and rejected-state rollback.
+- Relevant source: `program/src/instructions/helpers/transfer_validation.rs`,
+  `create_recurring_delegation.rs`, `transfer_recurring_delegation.rs` and recurring
+  account layout; upstream tests: `test_transfer_recurring_delegation.rs`.
+- Experience: an attempted period rollover can roll back on transfer failure.
+  Observation must derive allowance from the bank clock without claiming a write.
+  Skipped periods do not accumulate; finite expiry retains the final in-bounds
+  period, including its remaining allowance at the inclusive endpoint.
+- Reuse: DEPEND official client decoding/builders and Mollusk; REIMPLEMENT FROM SPEC
+  for the independently written semantic projection. No upstream source copied.
+- `subscriptions-recurring.json` captures 13 native transitions;
+  `subscriptions-recurring-arm.json` specifies the complete partial-pull projection.
+  DelegationAdapter version 0.2 shares account validation and native revoke with fixed
+  grants. Native tests prove declared removal, recompilation, future start and unbounded
+  rollover. No live deployment coverage or ARM schema change is claimed.
