@@ -100,6 +100,61 @@ fn golden_bytes_are_reproduced_by_native_approve() {
 }
 
 #[test]
+fn native_account_closure_removes_delegate_authority() {
+    let mut state = state();
+    let mut account = TokenAccount::unpack(&state.account.data).unwrap();
+    account.amount = 0;
+    TokenAccount::pack(account, &mut state.account.data).unwrap();
+    assert_eq!(
+        sdk::compile_state(&DelegateAdapter, &state, &context())
+            .unwrap()
+            .len(),
+        1
+    );
+    let recipient = Pubkey::new_from_array([8; 32]);
+    let instruction =
+        instruction::close_account(&token::ID, &state.address, &recipient, &account.owner, &[])
+            .unwrap();
+    let mut mollusk = Mollusk::default();
+    token::add_program(&mut mollusk);
+    let result = mollusk.process_instruction(
+        &instruction,
+        &[
+            (state.address, state.account.clone()),
+            (recipient, Account::default()),
+            (account.owner, state.owner.clone()),
+        ],
+    );
+    assert_eq!(result.raw_result, Ok(()));
+    state.account = result
+        .resulting_accounts
+        .iter()
+        .find(|(key, _)| *key == state.address)
+        .unwrap()
+        .1
+        .clone();
+    assert_eq!(state.account, Account::default());
+    assert!(sdk::compile_state(&DelegateAdapter, &state, &context())
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        DelegateAdapter.source_requirements(&state).accounts,
+        vec![state.address]
+    );
+    let mut unknown = context();
+    unknown.native.program_version = "unknown".into();
+    assert_eq!(
+        sdk::compile_state(&DelegateAdapter, &state, &unknown),
+        Err(Error::UnsupportedVersion)
+    );
+    state.account.lamports = 1;
+    assert!(matches!(
+        sdk::compile_state(&DelegateAdapter, &state, &context()),
+        Err(Error::InvalidState(_))
+    ));
+}
+
+#[test]
 fn native_spending_enforces_and_consumes_the_observed_budget() {
     let state = state();
     let native = TokenAccount::unpack(&state.account.data).unwrap();

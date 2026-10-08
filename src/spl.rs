@@ -411,6 +411,13 @@ impl Adapter for DelegateAdapter {
     }
 
     fn compile_state(&self, state: &State, context: &Context) -> Result<Vec<Authorization>, Error> {
+        if state.account.owner == Pubkey::default()
+            && !state.account.executable
+            && state.account.lamports == 0
+            && state.account.data.is_empty()
+        {
+            return Ok(vec![]);
+        }
         let account = decode(&state.account)?;
         let Some(delegate) = Option::<Pubkey>::from(account.delegate) else {
             return Ok(vec![]);
