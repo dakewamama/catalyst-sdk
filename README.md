@@ -127,6 +127,10 @@ bytes are reproduced by native initialization, minting and approval.
 
 ## Subscriptions delegations
 
+The native subscription lifecycle capture proves shared plan budgets, recipient
+restrictions, cancellation/resume, immediate cancellation and sunset behavior.
+Subscription semantic compilation remains pending; this fixture is not live support.
+
 subscriptions::DelegationAdapter uses the official subscriptions 0.5.0 account types and
 instruction builders for fixed and recurring delegations. DelegationState supplies the
 delegation, authority, canonical source token account, matching mint, keyed wallet

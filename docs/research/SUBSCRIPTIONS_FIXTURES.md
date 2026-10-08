@@ -2,7 +2,8 @@
 
 Baseline and verified semantics: [SUBSCRIPTIONS_SEMANTICS.md](SUBSCRIPTIONS_SEMANTICS.md).
 These are fixtures required before expanding adapter claims. Fixed and recurring
-delegations have native and semantic goldens; subscription cases remain uncaptured.
+delegations have native and semantic goldens. Subscription lifecycle has a native
+capture; its semantic projection and control actions remain the next gate.
 Upstream test paths refer to the pinned source in that document.
 
 Every captured case must include program/token ELF hashes, source revisions,
@@ -80,4 +81,24 @@ recurring grant after a 60-unit pull. Projection derives an unpersisted rollover
 the bank clock; it does not pretend a rejected transaction committed that rollover.
 Native tests also create an unbounded grant with a future start and prove its time gate.
 DelegationAdapter version 0.2 handles both kinds and proves revoke/Diff/recompilation
-for each. Subscription, cancellation and resume captures are the next fixture gate.
+for each.
+
+subscriptions-lifecycle.json captures 41 native transitions with the same pinned
+program/client and ELF hashes. Plans use 100-unit hourly budgets. Owner and puller
+share one cap, while the recipient whitelist is independent of the caller. Pending
+cancellation permits a pull before its exclusive cutoff. Resume rejects a stale
+cutoff and preserves consumption; it fails at the cutoff. Subscriber revoke closes
+only the cancelled subscription and preserves the shared approval.
+
+Re-subscription reuses the PDA with a later period start. A retained immediate-cancel
+instruction for the earlier start fails. Immediate cancellation requires both
+signatures. Another subscription using the same authority still collects to an
+unrestricted recipient. Sunset permits existing collection but rejects a new
+subscription. Every rejected instruction leaves every account unchanged. This
+capture also rejects stale subscribe terms/generation, premature subscriber revoke
+and stale plan updates. Sunset permits puller removal but rejects restoration;
+the removed puller loses collection authority. At finite plan end, cancellation
+is capped at end plus one and the final period's remaining budget is collectible
+through the inclusive end. Collection fails one second later. This does not yet
+prove the subscription ARM projection, live support, global revoke or authority
+closure/recreation behavior for subscriptions.

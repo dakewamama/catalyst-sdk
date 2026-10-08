@@ -182,3 +182,21 @@
   DelegationAdapter version 0.2 shares account validation and native revoke with fixed
   grants. Native tests prove declared removal, recompilation, future start and unbounded
   rollover. No live deployment coverage or ARM schema change is claimed.
+
+## Subscriptions lifecycle fixture
+
+- Same pinned MIT source, official 0.5.0 client and ELF hashes as the delegation
+  fixtures. EXECUTED LOCALLY: 41 transitions in subscriptions-lifecycle.json.
+- Relevant handlers: subscribe, transfer_subscription, cancel_subscription,
+  resume_subscription, cancel_subscription_now, update_plan and revoke_delegation.
+- Experience: native plan status uses Sunset=0 and Active=1. Sunset blocks new
+  subscriptions while existing ones collect. Cancellation is an exclusive time
+  boundary, not immediate suspension; resume preserves the shared period budget.
+  Immediate cancellation requires joint signatures and binds the observed period
+  start. It preserves other subscriptions and the shared technical approval.
+- Rejection fixtures cover stale subscribe consent/generation, active/pending
+  subscriber revoke, stale plan edits and puller restoration after sunset.
+  Finite plan end remains inclusive; cancellation caps at end plus one and
+  never opens a fresh period at the final boundary.
+- Reuse: DEPEND/PUBLIC API for official instruction builders and Mollusk. No source
+  copied. The capture proves native behavior, not yet its semantic projection.
