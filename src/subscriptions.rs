@@ -24,6 +24,10 @@ use spl_token_interface::state::{Account as TokenAccount, Mint};
 pub const PROGRAM_VERSION: &str =
     "sha256:a59467f0b2d0a0211b06ddf9a3f3141a90eaea6faeeaa3d19541288eaa082107";
 pub const DEPLOYMENT: &str = "fixture:mollusk:subscriptions:0.5.0";
+pub const DEVNET_PROGRAM_VERSION: &str =
+    "sha256:2675ad1d2b5068d47fc5d169156cf4859a9c21c0406ce63e3828e3b7320fddbf";
+pub const DEVNET_DEPLOYMENT: &str =
+    "solana:loader-v3:HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg:506642674";
 
 pub const ADAPTER_VERSION: &str = "0.3";
 
@@ -385,8 +389,10 @@ impl Adapter for DelegationAdapter {
 
     fn supports(&self, native: &NativeContext) -> bool {
         native.protocol == "subscriptions"
-            && native.deployment == DEPLOYMENT
-            && native.program_version == PROGRAM_VERSION
+            && matches!(
+                (native.deployment.as_str(), native.program_version.as_str()),
+                (DEPLOYMENT, PROGRAM_VERSION) | (DEVNET_DEPLOYMENT, DEVNET_PROGRAM_VERSION)
+            )
             && native.adapter_version == ADAPTER_VERSION
     }
 

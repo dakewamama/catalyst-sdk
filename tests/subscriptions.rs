@@ -750,6 +750,42 @@ fn missing_or_ambiguous_controller_evidence_fails_closed() {
 }
 
 #[test]
+fn only_verified_deployment_and_version_pairs_compile() {
+    let state = state(&accounts(2));
+    for (deployment, version) in [
+        (DEPLOYMENT, PROGRAM_VERSION),
+        (DEVNET_DEPLOYMENT, DEVNET_PROGRAM_VERSION),
+    ] {
+        let mut known = context();
+        known.native.deployment = deployment.into();
+        known.native.program_version = version.into();
+        let compiled = sdk::compile_state(&DelegationAdapter, &state, &known).unwrap();
+        assert!(compiled
+            .iter()
+            .all(|grant| grant.native_context == known.native));
+        for (wrong_deployment, wrong_version) in [
+            (DEPLOYMENT, DEVNET_PROGRAM_VERSION),
+            (DEVNET_DEPLOYMENT, PROGRAM_VERSION),
+            ("unknown", version),
+            (deployment, "sha256:unknown"),
+        ] {
+            let mut unknown = known.clone();
+            unknown.native.deployment = wrong_deployment.into();
+            unknown.native.program_version = wrong_version.into();
+            assert!(!DelegationAdapter.supports(&unknown.native));
+            assert_eq!(
+                sdk::compile_state(&DelegationAdapter, &state, &unknown),
+                Err(Error::UnsupportedVersion)
+            );
+            assert_eq!(
+                sdk::actions(&DelegationAdapter, &compiled[1], &state, &unknown),
+                Err(Error::UnsupportedVersion)
+            );
+        }
+    }
+}
+
+#[test]
 fn unknown_versions_and_malformed_native_state_fail_closed() {
     let state = state(&accounts(2));
     let mut context = context();

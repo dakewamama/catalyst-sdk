@@ -38,8 +38,7 @@ parallel semantic model is maintained here. Solana instruction/public-key depend
 are pinned; adapter native clients must use compatible versions.
 
 Verified reuse boundaries and the native compatibility proof are recorded in
-[REUSE_BOUNDARIES.md](docs/research/REUSE_BOUNDARIES.md). Suspend and Resume have no native
-implementation yet and are not exposed as action kinds.
+[REUSE_BOUNDARIES.md](docs/research/REUSE_BOUNDARIES.md).
 
 ## SPL delegate slice
 
@@ -51,9 +50,10 @@ action requires an observed ordinary system account; multisig/program-controlled
 are unsupported for actions. Multisig/program-controlled delegates are unsupported for
 interpretation until their principal semantics are implemented.
 
-Support is limited to the exact ELF digest and two deployment selectors named by spl
-constants: the local fixture and LIVE_DEPLOYMENT. The October 8, 2026 mainnet observation
-matched the pinned Mollusk ELF bytes, as recorded in [SOURCE_LEDGER.md](docs/research/SOURCE_LEDGER.md).
+Support is limited to the exact ELF digest and three deployment selectors named by spl
+constants: the local fixture, LIVE_DEPLOYMENT and DEVNET_DEPLOYMENT. The October 8,
+2026 mainnet observation matched the pinned Mollusk ELF bytes, as recorded in
+[SOURCE_LEDGER.md](docs/research/SOURCE_LEDGER.md).
 For each live observation, the runtime must validate raw program, ProgramData and Clock
 from the same finalized response and compare the full payload hash and exact selector.
 A label alone does not establish coverage. Unknown versions fail before decoding.
@@ -180,7 +180,15 @@ Diff at the observed bank clock, including empty changes when the plan already i
 the cancellation cutoff. Execution at another clock requires fresh simulation/state;
 a declared Diff does not promise that a delayed transaction has the same result.
 
-Support is limited to the exact local Subscriptions and classic SPL ELF versions.
+Support includes the exact local fixture and verified devnet Subscriptions deployment,
+paired with their respective full payload hashes. DEVNET_DEPLOYMENT and
+DEVNET_PROGRAM_VERSION identify deployment slot 506642674; the fixture pair remains
+unchanged. The October 9 finalized capture binds program, ProgramData, SPL and Clock
+to one bank. The official deployment's verified hash matches the rebuilt source;
+the captured executable reproduces all 59 native fixture transitions and the native
+Cancel/CancelNow/Resume/Revoke semantic round trips. See [SOURCE_LEDGER.md](docs/research/SOURCE_LEDGER.md).
+The runtime must validate the complete payload and selector for each observation;
+these constants establish neither an open-ended support interval nor address coverage.
 Unknown account versions and malformed bindings fail closed. Token-2022 and program
 controlled acting wallets remain unsupported. Missing plan evidence fails closed;
 an observed closed plan is unsupported rather than a fabricated merchant identity.

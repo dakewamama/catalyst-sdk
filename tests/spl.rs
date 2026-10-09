@@ -214,7 +214,7 @@ fn native_spending_enforces_and_consumes_the_observed_budget() {
 
 #[test]
 fn native_revoke_executes_and_recompilation_matches_declared_diff() {
-    for deployment in [DEPLOYMENT, LIVE_DEPLOYMENT] {
+    for deployment in [DEPLOYMENT, LIVE_DEPLOYMENT, DEVNET_DEPLOYMENT] {
         let mut context = context();
         context.native.deployment = deployment.into();
         native_revoke_round_trip(context);
@@ -274,7 +274,7 @@ fn native_revoke_round_trip(context: Context) {
 #[test]
 fn only_exact_deployments_and_versions_are_supported() {
     let state = state();
-    for deployment in [DEPLOYMENT, LIVE_DEPLOYMENT] {
+    for deployment in [DEPLOYMENT, LIVE_DEPLOYMENT, DEVNET_DEPLOYMENT] {
         let mut known = context();
         known.native.deployment = deployment.into();
         assert!(DelegateAdapter.supports(&known.native));

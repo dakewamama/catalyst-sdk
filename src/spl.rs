@@ -14,6 +14,8 @@ pub const PROGRAM_VERSION: &str =
 pub const DEPLOYMENT: &str = "fixture:mollusk:token:0.15.1";
 pub const LIVE_DEPLOYMENT: &str =
     "solana:loader-v3:3gvYRKWyXRR9xKWe1ZjPhLY5ZJRN7KDB4rFZFGoJfFk2:419472000";
+pub const DEVNET_DEPLOYMENT: &str =
+    "solana:loader-v3:3gvYRKWyXRR9xKWe1ZjPhLY5ZJRN7KDB4rFZFGoJfFk2:451008000";
 
 pub struct DelegateAdapter;
 
@@ -393,7 +395,10 @@ impl Adapter for DelegateAdapter {
 
     fn supports(&self, native: &NativeContext) -> bool {
         native.protocol == "spl-token"
-            && (native.deployment == DEPLOYMENT || native.deployment == LIVE_DEPLOYMENT)
+            && matches!(
+                native.deployment.as_str(),
+                DEPLOYMENT | LIVE_DEPLOYMENT | DEVNET_DEPLOYMENT
+            )
             && native.program_version == PROGRAM_VERSION
             && native.adapter_version == "0.1"
     }

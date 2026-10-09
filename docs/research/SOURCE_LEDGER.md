@@ -241,3 +241,45 @@
   usage at the observed clock; native execution and recompilation are its proof.
   Canonical cancellation can have no semantic delta when finite plan end already
   imposes that cutoff. Retained signatures still obey the documented native limits.
+
+## Verified devnet deployment (October 9, 2026)
+
+- Native source: solana-foundation/subscriptions
+  `56de552a26a0f0af437c0ce5191b3309741cc596`, MIT. This remains the adapter baseline.
+  [Official devnet deployment](https://github.com/solana-foundation/subscriptions/actions/runs/37008589067),
+  job `110842633884`, built that commit on October 2 using solana-verify 0.5.2,
+  Agave 3.1.10 and platform-tools v1.52. Program-v0.5.0 instead tags `364a419`;
+  a client or release name alone does not establish executable identity.
+- Verifier: https://github.com/solana-foundation/solana-verifiable-build,
+  tag v0.5.2, commit `f8cfe2f834f4334aad9c60a29284de0ba396f829`, MIT.
+  TARGETED SOURCE of `src/main.rs::get_binary_hash`, build invocation and
+  `docker/v3.1.10.Dockerfile`. Reuse: PUBLIC API / PATTERN ONLY; no source copied.
+  The verified hash excludes trailing zero allocation bytes. Runtime identity
+  continues to hash the entire observed payload; it does not normalize padding.
+- Official image digest:
+  `solanafoundation/solana-verifiable-build@sha256:f71be5ca7620b7e40933b7f1294fa44e01d08c1fc5ba1f375a2478f5a01580d3`.
+  The deployment log prints verified executable hash
+  `e705f5a309f84f849b402f20de4bea5f2cc1d1d4f691ba7caabcb07c8b46af51`.
+- EXECUTED LOCALLY: locked offline source rebuild using official Agave 3.1.10
+  and platform-tools v1.52 reproduced that verified hash. This used the native
+  toolchain, not Docker. The stripped 129168-byte ELF's full SHA256 is
+  `1135b0933f7b4e291a9cf1c4e839641cbbad42eb822c514d901c9f0fce6da5ed`.
+- Fresh public devnet finalized `getMultipleAccounts` at slot `509022453`
+  retains both native programs, their ProgramData and Clock in one unsliced
+  response. Genesis: `EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG`;
+  Clock timestamp: `1791511613`; response SHA256:
+  `794c6c9fbb35697eabf1931fb42440cca8b8a8dc2a42de95fb95b1a945651f53`.
+- Subscriptions ProgramData `HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg`,
+  deployment slot `506642674`, has a 133280-byte payload. Its verified hash
+  matches both the official job and the rebuild; full payload SHA256:
+  `2675ad1d2b5068d47fc5d169156cf4859a9c21c0406ce63e3828e3b7320fddbf`.
+  The retained payload is `tests/fixtures/subscriptions-devnet-program.so`.
+- Devnet SPL ProgramData `3gvYRKWyXRR9xKWe1ZjPhLY5ZJRN7KDB4rFZFGoJfFk2`,
+  deployment slot `451008000`, has the same complete 108600-byte payload as
+  `spl::PROGRAM_VERSION`. DEVNET_DEPLOYMENT binds that separate deployment.
+- EXECUTED LOCALLY: all 59 fixed/recurring/subscription native transitions reproduce
+  unchanged account bytes and rejection outcomes against the captured executable.
+  Canonical subscription controls are executed, diffed and recompiled for both
+  version pairs. The fixture pair is preserved; cross-paired hashes are rejected.
+  These are local conformance proofs and program identity evidence, not live user
+  grants, chain execution, complete coverage or blanket audit coverage of this commit.

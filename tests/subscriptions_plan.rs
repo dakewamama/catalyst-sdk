@@ -128,7 +128,14 @@ fn context(step: &Value, phase: &str) -> Context {
 }
 
 fn vm(step: &Value, accounts: &mut Vec<(Pubkey, Account)>) -> Mollusk {
-    let elf = include_bytes!("fixtures/subscriptions-program.so");
+    vm_with_elf(
+        step,
+        accounts,
+        include_bytes!("fixtures/subscriptions-program.so"),
+    )
+}
+
+fn vm_with_elf(step: &Value, accounts: &mut Vec<(Pubkey, Account)>, elf: &[u8]) -> Mollusk {
     let mut vm = Mollusk::default();
     vm.add_program_with_loader_and_elf(&SUBSCRIPTIONS_ID, &program::loader_keys::LOADER_V2, elf);
     token::add_program(&mut vm);
@@ -539,6 +546,23 @@ fn cancellation_resume_and_inclusive_plan_end_have_native_boundaries() {
 
 #[test]
 fn native_actions_predict_exact_changes_and_preserve_technical_and_plan_records() {
+    for (deployment, version, elf) in [
+        (
+            DEPLOYMENT,
+            PROGRAM_VERSION,
+            include_bytes!("fixtures/subscriptions-program.so").as_slice(),
+        ),
+        (
+            DEVNET_DEPLOYMENT,
+            DEVNET_PROGRAM_VERSION,
+            include_bytes!("fixtures/subscriptions-devnet-program.so").as_slice(),
+        ),
+    ] {
+        native_actions_round_trip(deployment, version, elf);
+    }
+}
+
+fn native_actions_round_trip(deployment: &str, version: &str, elf: &[u8]) {
     let trace = trace();
     for (name, phase, kind, expected_kinds) in [
         (
@@ -586,10 +610,12 @@ fn native_actions_predict_exact_changes_and_preserve_technical_and_plan_records(
     ] {
         let step = transition(&trace, name);
         let mut accounts = accounts(step, phase);
-        let vm = vm(step, &mut accounts);
+        let vm = vm_with_elf(step, &mut accounts, elf);
         let plan_id = u64::from(name == "cancel_capped_at_inclusive_plan_end");
         let state = state(&accounts, vm.sysvars.clock.unix_timestamp, plan_id);
-        let context = context(step, phase);
+        let mut context = context(step, phase);
+        context.native.deployment = deployment.into();
+        context.native.program_version = version.into();
         let before = sdk::compile_state(&DelegationAdapter, &state, &context).unwrap();
         for authorization in [&before[0], &before[2]] {
             assert!(
