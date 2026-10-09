@@ -97,6 +97,7 @@ fn golden_close_authority_is_exact_and_reproduced_natively() {
 #[test]
 fn clearing_explicit_close_authority_changes_principal_instead_of_removing_power() {
     let mut state = fixture();
+    let before_state = fixture();
     let before = sdk::compile_state(&CloseAdapter, &state, &context())
         .unwrap()
         .remove(0);
@@ -120,6 +121,17 @@ fn clearing_explicit_close_authority_changes_principal_instead_of_removing_power
     let mut observed = context();
     observed.evidence.observed_at = "fixture:slot:2".into();
     observed.evidence.references = vec!["fixture:close-reset:result".into()];
+    assert_eq!(
+        sdk::verify_transaction_diff(
+            &CloseAdapter,
+            &action.instructions,
+            &before_state,
+            &context(),
+            &state,
+            &observed
+        ),
+        Ok(changes.clone())
+    );
     let mut after = sdk::compile_state(&CloseAdapter, &state, &observed)
         .unwrap()
         .remove(0);

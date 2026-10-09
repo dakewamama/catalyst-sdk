@@ -228,6 +228,17 @@ mod recurring {
         let result = vm.process_instruction(&action.instructions[0], &accounts);
         assert_eq!(result.raw_result, Ok(()));
         assert_eq!(
+            sdk::verify_transaction_diff(
+                &DelegationAdapter,
+                &action.instructions,
+                &state,
+                &context,
+                &self::state(&result.resulting_accounts, vm.sysvars.clock.unix_timestamp),
+                &context
+            ),
+            sdk::diff_transaction(&DelegationAdapter, &action.instructions, &state, &context)
+        );
+        assert_eq!(
             sdk::compile_state(
                 &DelegationAdapter,
                 &self::state(&result.resulting_accounts, vm.sysvars.clock.unix_timestamp),
@@ -486,6 +497,17 @@ fn adapter_revoke_executes_and_matches_declared_removal() {
     );
     let result = vm.process_instruction(&action.instructions[0], &accounts);
     assert_eq!(result.raw_result, Ok(()));
+    assert_eq!(
+        sdk::verify_transaction_diff(
+            &DelegationAdapter,
+            &action.instructions,
+            &state,
+            &context,
+            &self::state(&result.resulting_accounts),
+            &context
+        ),
+        Ok(declared)
+    );
     let after = sdk::compile_state(
         &DelegationAdapter,
         &self::state(&result.resulting_accounts),

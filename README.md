@@ -27,7 +27,25 @@ the ABI does not authenticate RPC responses or establish freshness/finality.
 SourceRequirements lists native account keys and whether clock evidence is needed.
 Actions contain standard solana-instruction instructions, including native signer and
 writable account metadata. The SDK neither signs nor submits transactions. Declared Diff
-is an adapter statement; simulation agreement and execution are later milestones.
+is an adapter statement. `verify_transaction_diff` checks agreement with a successful
+simulation's recompiled state before returning that statement.
+
+The caller supplies before/after typed states and their observation contexts, checks
+simulation success and binds the instruction list, account scope and bank clock to
+that execution. Both contexts must use the same verified program/deployment/version
+and adapter. The check applies each declared change once, validates its current-state
+precondition and compares every projected authorization field with the observed result.
+Only observation evidence is normalized for equality; original contexts are retained
+by the caller and returned changes keep their declared evidence. `DiffMismatch` rejects
+disagreement, duplicate effects, missing removals and unexpected surviving permissions.
+
+This verifies the adapter's projection, preserving its existing observability and
+coverage limits. It does not authenticate an RPC response or guarantee that a future
+execution matches this simulation. Native tests use atomic Mollusk transaction
+execution for SPL revoke and delayed Subscriptions cancellation. A revoke followed by
+a failing instruction rolls back. A cancellation crossing a period boundary rejects
+the stale cutoff; a fresh declaration at the simulated clock agrees. Existing SPL
+mint/close, Token-2022 and Subscriptions management round trips also pass the check.
 
 The synthetic test adapter proves determinism, explicit requirements, failure before
 interpretation, evidence propagation, standard instructions and removal representation.

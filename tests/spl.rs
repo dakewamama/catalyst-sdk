@@ -223,6 +223,7 @@ fn native_revoke_executes_and_recompilation_matches_declared_diff() {
 
 fn native_revoke_round_trip(context: Context) {
     let mut state = state();
+    let before_state = self::state();
     let before = sdk::compile_state(&DelegateAdapter, &state, &context)
         .unwrap()
         .remove(0);
@@ -244,12 +245,13 @@ fn native_revoke_round_trip(context: Context) {
     );
     let mut mollusk = Mollusk::default();
     token::add_program(&mut mollusk);
-    let result = mollusk.process_instruction(
-        &action.instructions[0],
+    let result = mollusk.process_transaction_instructions(
+        &action.instructions,
         &[
             (state.address, state.account.clone()),
             (native.owner, state.owner.clone()),
         ],
+        None,
     );
     assert_eq!(result.raw_result, Ok(()));
     state.account = result
@@ -263,12 +265,85 @@ fn native_revoke_round_trip(context: Context) {
     assert_eq!(after.delegated_amount, 0);
     assert_eq!(after.owner, native.owner);
     assert_eq!(after.amount, native.amount);
-    let mut observed = context;
+    let mut observed = context.clone();
     observed.evidence.observed_at = "fixture:slot:2".into();
     observed.evidence.references = vec!["fixture:native-revoke:result".into()];
     assert!(sdk::compile_state(&DelegateAdapter, &state, &observed)
         .unwrap()
         .is_empty());
+    assert_eq!(
+        sdk::verify_transaction_diff(
+            &DelegateAdapter,
+            &action.instructions,
+            &before_state,
+            &context,
+            &state,
+            &observed
+        ),
+        Ok(declared)
+    );
+    assert_eq!(
+        sdk::verify_transaction_diff(
+            &DelegateAdapter,
+            &action.instructions,
+            &before_state,
+            &context,
+            &before_state,
+            &observed
+        ),
+        Err(Error::DiffMismatch)
+    );
+}
+
+#[test]
+fn verified_diff_does_not_cross_known_deployment_boundaries() {
+    let before = context();
+    let mut after = before.clone();
+    after.native.deployment = LIVE_DEPLOYMENT.into();
+    assert!(DelegateAdapter.supports(&after.native));
+    assert_eq!(
+        sdk::verify_transaction_diff(&DelegateAdapter, &[], &state(), &before, &state(), &after),
+        Err(Error::UnsupportedVersion)
+    );
+}
+
+#[test]
+fn failed_transaction_rolls_back_an_already_executed_revoke() {
+    let state = state();
+    let native = TokenAccount::unpack(&state.account.data).unwrap();
+    let beneficiary = Pubkey::new_from_array([9; 32]);
+    let mut destination = state.account.clone();
+    let mut recipient = native;
+    recipient.amount = 0;
+    recipient.delegate = COption::None;
+    recipient.delegated_amount = 0;
+    TokenAccount::pack(recipient, &mut destination.data).unwrap();
+    let instructions = [
+        instruction::revoke(&token::ID, &state.address, &native.owner, &[]).unwrap(),
+        instruction::transfer(
+            &token::ID,
+            &state.address,
+            &beneficiary,
+            &native.owner,
+            &[],
+            native.amount + 1,
+        )
+        .unwrap(),
+    ];
+    let accounts = vec![
+        (state.address, state.account.clone()),
+        (native.owner, state.owner.clone()),
+        (beneficiary, destination),
+    ];
+    let mut vm = Mollusk::default();
+    token::add_program(&mut vm);
+    let result = vm.process_transaction_instructions(&instructions, &accounts, None);
+    assert!(format!("{:?}", result.raw_result).starts_with("Err(InstructionError(1,"));
+    assert_eq!(result.resulting_accounts, accounts);
+    assert_eq!(
+        sdk::diff_transaction(&DelegateAdapter, &instructions, &state, &context()),
+        Err(Error::UnsupportedOperation)
+    );
 }
 
 #[test]

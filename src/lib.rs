@@ -52,6 +52,7 @@ pub enum Error {
     InsufficientEvidence,
     InvalidState(String),
     InvalidProjection,
+    DiffMismatch,
 }
 
 impl std::fmt::Display for Error {
@@ -163,6 +164,75 @@ pub fn diff_transaction<A: Adapter>(
                 }
             }
         }
+    }
+    Ok(changes)
+}
+
+/// Compare declared changes with a successful simulation's recompiled state.
+/// The caller binds account scope, clock and execution evidence; coverage is unchanged.
+pub fn verify_transaction_diff<A: Adapter>(
+    adapter: &A,
+    instructions: &[Instruction],
+    before: &A::State,
+    before_context: &Context,
+    after: &A::State,
+    after_context: &Context,
+) -> Result<Vec<AuthorizationChange>, Error> {
+    check_context(adapter, before_context)?;
+    check_context(adapter, after_context)?;
+    if before_context.program_id != after_context.program_id
+        || before_context.native != after_context.native
+    {
+        return Err(Error::UnsupportedVersion);
+    }
+    let mut expected = compile_state(adapter, before, before_context)?;
+    let changes = diff_transaction(adapter, instructions, before, before_context)?;
+    let mut touched = Vec::new();
+    for change in &changes {
+        let (id, previous, next) = match change {
+            AuthorizationChange::Added { authorization } => (
+                authorization.id.as_str(),
+                None,
+                Some(authorization.as_ref()),
+            ),
+            AuthorizationChange::Removed { authorization } => (
+                authorization.id.as_str(),
+                Some(authorization.as_ref()),
+                None,
+            ),
+            AuthorizationChange::Changed { before, after } => (
+                before.id.as_str(),
+                Some(before.as_ref()),
+                Some(after.as_ref()),
+            ),
+        };
+        if touched.contains(&id) {
+            return Err(Error::DiffMismatch);
+        }
+        touched.push(id);
+        if let Some(previous) = previous {
+            let index = expected
+                .iter()
+                .position(|authorization| authorization == previous)
+                .ok_or(Error::DiffMismatch)?;
+            expected.remove(index);
+        }
+        if let Some(next) = next {
+            if expected.iter().any(|authorization| authorization.id == id) {
+                return Err(Error::DiffMismatch);
+            }
+            expected.push(next.clone());
+        }
+    }
+    let mut observed = compile_state(adapter, after, after_context)?;
+    // Observation evidence changes independently of permission semantics.
+    for authorization in &mut observed {
+        authorization.evidence = before_context.evidence.clone();
+    }
+    expected.sort_unstable_by(|a, b| a.id.cmp(&b.id));
+    observed.sort_unstable_by(|a, b| a.id.cmp(&b.id));
+    if expected != observed {
+        return Err(Error::DiffMismatch);
     }
     Ok(changes)
 }

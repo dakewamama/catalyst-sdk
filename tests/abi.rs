@@ -9,6 +9,7 @@ struct FixtureAdapter {
     calls: Cell<u32>,
     corrupt: bool,
     duplicate: bool,
+    declared: Option<Vec<AuthorizationChange>>,
 }
 impl FixtureAdapter {
     fn new() -> Self {
@@ -16,6 +17,7 @@ impl FixtureAdapter {
             calls: Cell::new(0),
             corrupt: false,
             duplicate: false,
+            declared: None,
         }
     }
 }
@@ -107,6 +109,9 @@ impl Adapter for FixtureAdapter {
         self.calls.set(self.calls.get() + 1);
         if instructions.len() != 1 || instructions[0].data != [0] {
             return Err(Error::UnsupportedOperation);
+        }
+        if let Some(changes) = &self.declared {
+            return Ok(changes.clone());
         }
         Ok(self
             .compile_state(state, context)?
@@ -210,6 +215,7 @@ fn missing_evidence_and_corrupt_projection_reject() {
         calls: Cell::new(0),
         corrupt: true,
         duplicate: false,
+        declared: None,
     };
     assert_eq!(
         sdk::compile_state(&corrupt, &state, &context()),
@@ -223,6 +229,7 @@ fn duplicate_authorization_identity_rejects_the_whole_projection() {
         calls: Cell::new(0),
         corrupt: false,
         duplicate: true,
+        declared: None,
     };
     assert_eq!(
         sdk::compile_state(&adapter, &State { remaining: Some(5) }, &context()),
@@ -270,4 +277,131 @@ fn action_requires_the_current_observation_not_stale_evidence() {
         sdk::actions(&adapter, &a, &state, &context),
         Err(Error::InvalidProjection)
     );
+}
+
+#[test]
+fn verified_diff_applies_add_change_remove_and_empty_declarations() {
+    let before_context = context();
+    let mut after_context = context();
+    after_context.evidence.observed_at = "fixture:slot:2".into();
+    after_context.evidence.references = vec!["fixture:simulation:result".into()];
+    let adapter = FixtureAdapter::new();
+    let empty = State { remaining: None };
+    let old = State { remaining: Some(5) };
+    let new = State {
+        remaining: Some(u64::MAX),
+    };
+    let previous = sdk::compile_state(&adapter, &old, &before_context)
+        .unwrap()
+        .remove(0);
+    let next = sdk::compile_state(&adapter, &new, &before_context)
+        .unwrap()
+        .remove(0);
+    let instruction = Instruction::new_with_bytes(Default::default(), &[0], vec![]);
+    for (before, after, changes) in [
+        (
+            &empty,
+            &old,
+            vec![AuthorizationChange::Added {
+                authorization: Box::new(previous.clone()),
+            }],
+        ),
+        (
+            &old,
+            &new,
+            vec![AuthorizationChange::Changed {
+                before: Box::new(previous.clone()),
+                after: Box::new(next),
+            }],
+        ),
+        (
+            &old,
+            &empty,
+            vec![AuthorizationChange::Removed {
+                authorization: Box::new(previous),
+            }],
+        ),
+        (&old, &old, vec![]),
+    ] {
+        let mut adapter = FixtureAdapter::new();
+        adapter.declared = Some(changes.clone());
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &adapter,
+                std::slice::from_ref(&instruction),
+                before,
+                &before_context,
+                after,
+                &after_context
+            ),
+            Ok(changes)
+        );
+    }
+}
+
+#[test]
+fn verified_diff_rejects_stale_preconditions_duplicate_effects_and_disagreement() {
+    let mut adapter = FixtureAdapter::new();
+    let state = State { remaining: Some(5) };
+    let known = context();
+    let authorization = sdk::compile_state(&adapter, &state, &known)
+        .unwrap()
+        .remove(0);
+    let mut stale = authorization.clone();
+    stale.usage = UsageSemantics::Cumulative { remaining: Some(4) };
+    let removed = AuthorizationChange::Removed {
+        authorization: Box::new(authorization.clone()),
+    };
+    let instruction = Instruction::new_with_bytes(Default::default(), &[0], vec![]);
+    for changes in [
+        vec![AuthorizationChange::Added {
+            authorization: Box::new(authorization.clone()),
+        }],
+        vec![AuthorizationChange::Removed {
+            authorization: Box::new(stale),
+        }],
+        vec![removed.clone(), removed.clone()],
+        vec![
+            removed,
+            AuthorizationChange::Added {
+                authorization: Box::new(authorization),
+            },
+        ],
+        vec![],
+    ] {
+        adapter.declared = Some(changes);
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &adapter,
+                std::slice::from_ref(&instruction),
+                &state,
+                &known,
+                &State { remaining: None },
+                &known
+            ),
+            Err(Error::DiffMismatch)
+        );
+    }
+}
+
+#[test]
+fn verified_diff_checks_both_contexts_before_interpretation() {
+    let adapter = FixtureAdapter::new();
+    let state = State { remaining: Some(5) };
+    let known = context();
+    let mut unknown = known.clone();
+    unknown.native.program_version = "future".into();
+    for (before, after) in [(&known, &unknown), (&unknown, &known)] {
+        assert_eq!(
+            sdk::verify_transaction_diff(&adapter, &[], &state, before, &state, after),
+            Err(Error::UnsupportedVersion)
+        );
+    }
+    let mut missing = known.clone();
+    missing.evidence.references.clear();
+    assert_eq!(
+        sdk::verify_transaction_diff(&adapter, &[], &state, &known, &state, &missing),
+        Err(Error::InsufficientEvidence)
+    );
+    assert_eq!(adapter.calls.get(), 0);
 }

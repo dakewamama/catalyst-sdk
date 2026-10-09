@@ -562,6 +562,84 @@ fn native_actions_predict_exact_changes_and_preserve_technical_and_plan_records(
     }
 }
 
+#[test]
+fn delayed_native_cancellation_rejects_the_stale_declared_cutoff() {
+    let trace = trace();
+    let step = transition(&trace, "cancel_pending");
+    for (deployment, version, elf) in [
+        (
+            DEPLOYMENT,
+            PROGRAM_VERSION,
+            include_bytes!("fixtures/subscriptions-program.so").as_slice(),
+        ),
+        (
+            DEVNET_DEPLOYMENT,
+            DEVNET_PROGRAM_VERSION,
+            include_bytes!("fixtures/subscriptions-devnet-program.so").as_slice(),
+        ),
+    ] {
+        let mut accounts = accounts(step, "before");
+        let mut vm = vm_with_elf(step, &mut accounts, elf);
+        let before = state(&accounts, vm.sysvars.clock.unix_timestamp, 0);
+        let mut context = context(step, "before");
+        context.native.deployment = deployment.into();
+        context.native.program_version = version.into();
+        let instructions = vec![official_action(ActionKind::Cancel, &before)];
+        let declared =
+            sdk::diff_transaction(&DelegationAdapter, &instructions, &before, &context).unwrap();
+        assert!(
+            matches!(&declared[0], AuthorizationChange::Changed { after, .. }
+            if after.lifecycle == Lifecycle::Active { valid_from: Some(START), valid_until: Some(START + 3_600) })
+        );
+        vm.sysvars.clock.unix_timestamp += 3_600;
+        vm.sysvars.clock.slot += 1;
+        let result = vm.process_transaction_instructions(&instructions, &accounts, None);
+        assert_eq!(result.raw_result, Ok(()));
+        let after = state(
+            &result.resulting_accounts,
+            vm.sysvars.clock.unix_timestamp,
+            0,
+        );
+        assert_eq!(
+            SubscriptionDelegation::from_bytes(&after.delegation.1.data)
+                .unwrap()
+                .expires_at_ts,
+            START + 7_200
+        );
+        let mut observed = context.clone();
+        observed.evidence.observed_at = format!("fixture:slot:{}", vm.sysvars.clock.slot);
+        observed.evidence.references = vec![format!(
+            "test:delayed-cancel:timestamp:{}",
+            vm.sysvars.clock.unix_timestamp
+        )];
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &DelegationAdapter,
+                &instructions,
+                &before,
+                &context,
+                &after,
+                &observed
+            ),
+            Err(Error::DiffMismatch)
+        );
+        let fresh = state(&accounts, vm.sysvars.clock.unix_timestamp, 0);
+        let fresh_declared =
+            sdk::diff_transaction(&DelegationAdapter, &instructions, &fresh, &observed).unwrap();
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &DelegationAdapter,
+                &instructions,
+                &fresh,
+                &observed,
+                &after,
+                &observed
+            ),
+            Ok(fresh_declared)
+        );
+    }
+}
+
 fn native_actions_round_trip(deployment: &str, version: &str, elf: &[u8]) {
     let trace = trace();
     for (name, phase, kind, expected_kinds) in [
@@ -720,6 +798,23 @@ fn native_actions_round_trip(deployment: &str, version: &str, elf: &[u8]) {
             }
         };
         assert_eq!(declared, expected, "{name}:{phase}");
+        let mut observed = context.clone();
+        observed
+            .evidence
+            .references
+            .push(format!("test:simulation:{name}:result"));
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &DelegationAdapter,
+                &action.instructions,
+                &state,
+                &context,
+                &after_state,
+                &observed
+            ),
+            Ok(declared),
+            "{name}:{phase}"
+        );
         if phase == "before" {
             assert_eq!(
                 after,

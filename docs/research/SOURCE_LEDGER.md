@@ -86,6 +86,14 @@
 - Reuse: DEPEND/PUBLIC API for fixture ELF loading and instruction execution. No source
   code copied. Upstream fixture lockfile was a resolution seed; the project lockfile
   retains only its own dependency graph. No program crate is a runtime dependency.
+- Transaction agreement: TARGETED SOURCE of pinned Mollusk
+  `harness/src/lib.rs::process_transaction_instructions` and
+  `harness/tests/transaction_instructions.rs`. This method runs one message/context
+  and restores input accounts on failure; instruction chains are separate invocations.
+  EXECUTED LOCALLY with native SPL revoke plus a failing transfer, and cancellation
+  at a delayed Clock against both verified Subscriptions executables. Reuse: DEPEND.
+  SDK verifies only projected ARM changes; the caller checks native success and binds
+  instruction/account/clock evidence. No signature, fee, finality or coverage claim added.
 - Further executed evidence: InitializeMint2 + MintTo reproduce mint/token golden bytes;
   MintTo changes supply and balance; Freeze/Thaw change delegate availability; canonical
   SetAuthority removals agree with recompilation, including both Freeze/Thaw removals.

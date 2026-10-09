@@ -258,6 +258,17 @@ fn owner_and_delegate_can_each_revoke_only_the_ordinary_delegation() {
         let mut observed_context = context();
         observed_context.evidence.observed_at = "fixture:slot:2".into();
         observed_context.evidence.references = vec!["fixture:token2022-revoke:result".into()];
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &Token2022Adapter,
+                &action.instructions,
+                &state,
+                &context(),
+                &observed,
+                &observed_context
+            ),
+            Ok(changes)
+        );
         let mut after =
             sdk::compile_state(&Token2022Adapter, &observed, &observed_context).unwrap();
         assert_eq!(after.len(), 1);

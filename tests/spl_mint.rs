@@ -260,6 +260,7 @@ fn native_freeze_and_thaw_change_delegate_availability() {
 fn native_authority_removal_matches_diff_and_cannot_be_reversed() {
     for capability in [Capability::Mint, Capability::Freeze, Capability::Thaw] {
         let mut state = fixture();
+        let before_state = fixture();
         let before = sdk::compile_state(&MintAdapter, &state, &context()).unwrap();
         let authorization = before.iter().find(|a| a.capability == capability).unwrap();
         let action = sdk::actions(&MintAdapter, authorization, &state, &context())
@@ -277,6 +278,17 @@ fn native_authority_removal_matches_diff_and_cannot_be_reversed() {
         let mut observed = context();
         observed.evidence.observed_at = "fixture:slot:2".into();
         observed.evidence.references = vec!["fixture:mint-authority-removal:result".into()];
+        assert_eq!(
+            sdk::verify_transaction_diff(
+                &MintAdapter,
+                &action.instructions,
+                &before_state,
+                &context(),
+                &state,
+                &observed
+            ),
+            Ok(delta.clone())
+        );
         let after = sdk::compile_state(&MintAdapter, &state, &observed).unwrap();
         let removed: Vec<_> = before
             .iter()
