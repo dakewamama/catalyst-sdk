@@ -1,8 +1,8 @@
 # catalyst-sdk
 
 Catalyst translates typed native authority into ARM meaning. The Rust library is the
-semantic adapter boundary; the existing Bun/TypeScript package decodes lifecycle event
-bytes and retains its original API. Event decoding alone does not establish authority.
+semantic adapter boundary; the Bun/TypeScript package decodes lifecycle event bytes
+and verifies the wallet signing handoff. Event decoding alone does not establish authority.
 
 ## Semantic adapter ABI
 
@@ -214,6 +214,33 @@ Native global authority revoke, plan-edit actions and sponsor subscription recov
 are not exposed. All three delegation kinds have native fixtures, ARM goldens and
 native control/Diff/recompilation tests.
 
+## Wallet handoff
+
+`signReviewedTransaction(reviewedBytes, signTransaction)` accepts the legacy wire
+transaction returned by the runtime's verified SPL revoke endpoint. Call it only
+after reviewing that transaction and its simulation evidence. The callback must
+use the wallet's **signTransaction** operation, never signAndSendTransaction.
+The SDK cannot prevent a callback from submitting; choose a sign-only wallet API.
+
+The helper retains its own review snapshot, gives the wallet a separate buffer,
+and accepts the result only when the entire message is unchanged and every required
+Ed25519 signature verifies. It returns a separate copy of those exact signed bytes.
+It neither supplies keys nor sends transactions. Wallet rejection is propagated
+without retrying. Versioned transactions remain unsupported by this handoff.
+
+Use the returned bytes for submission. Changing the blockhash, fee payer, account
+list or instructions requires fresh simulation, review and signatures. Preserve
+the endpoint's last-valid block height without narrowing its integer precision.
+Check lifetime and observation freshness before submission; retain the transaction
+signature and reobserve finalized state before claiming that revocation succeeded.
+Signature verification establishes neither native execution success nor deployment
+coverage. This helper is not a general transaction sanitizer or a wallet UI.
+
+The wire fixture comes from Cataloger's native revoke simulation tests at
+`b511648bba96e826c51bf7c08b6975d8570c7492`. Signing tests replace only its owner
+with a local test key. No chain transaction is submitted by these tests.
+Kit 8.4.0 supplies the codecs, key import and signature verification.
+
 ## Checks
 
 ```sh
@@ -227,5 +254,5 @@ git diff --check
 ```
 
 The TypeScript public entry point remains index.ts. It exports decodeEvent, the event
-types and discriminators. The Rust public entry point is src/lib.rs. Source decisions
-and remaining work are recorded under docs/research.
+types, discriminators and signReviewedTransaction. The Rust public entry point is
+src/lib.rs. Source decisions and remaining work are recorded under docs/research.

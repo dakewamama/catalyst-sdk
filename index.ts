@@ -1,3 +1,4 @@
 export { decodeEvent } from "./src/decoder"
 export type { CatalystEvent, SubscriptionCreatedEvent, SubscriptionCancelledEvent, SubscriptionTransferEvent, FixedTransferEvent, RecurringTransferEvent, SubscriptionResumedEvent } from "./src/types"
 export { SUBSCRIPTION_PROGRAM_ID, EVENT_IX_TAG, EventDiscriminators } from "./src/constants"
+export { signReviewedTransaction } from "./src/wallet"

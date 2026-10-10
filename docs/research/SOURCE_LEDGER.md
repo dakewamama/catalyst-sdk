@@ -1,5 +1,35 @@
 # Source ledger
 
+## Wallet signing and transaction introspection
+
+- Source: https://github.com/anza-xyz/kit, tag `v8.4.0`, revision
+  `0a296c6ba8cd7e055f79364b64dbf01907172ea2`; MIT license inspected.
+  Wallet dependencies are pinned to the published 8.4.0 packages in bun.lock.
+- Inspection: TARGETED SOURCE in transaction codecs, compiled message codecs,
+  transaction signatures, addresses/public-key and keys/signatures. Relevant API:
+  getTransactionDecoder/Encoder, getCompiledTransactionMessageDecoder,
+  getPublicKeyFromAddress and verifySignature. No upstream source copied.
+- Reuse: DEPEND. Kit's isFullySignedTransaction/assertIsFullySignedTransaction
+  check signature presence, not cryptographic validity. The SDK must compare the
+  retained message and verify all returned signatures before allowing submission.
+  Wallet buffers can alias mutable caller data; retain independent byte snapshots.
+- Local tests exercise Kit codecs and real WebCrypto signatures against the runtime
+  revoke wire fixture from Cataloger `b511648bba96e826c51bf7c08b6975d8570c7492`.
+  The fixture is unchanged; signing tests substitute generated test keys. This is
+  local handoff evidence, not browser-wallet or finalized network execution evidence.
+- Introspection inspection: TARGETED SOURCE in the same release's
+  `packages/transaction-introspection/src/{decode-rpc-transaction,walk-instructions,get-inner-instructions}.ts`
+  and `src/__tests__/walk-instructions-test.ts`. Upstream tests were read, not run.
+  decodeTransactionFromRpcResponse handles wire/base64/base58 and unparsed JSON;
+  walkInstructions exposes outer and inner positions and resolves account indices.
+- Reuse decision: PUBLIC API candidate for transaction observation, not installed
+  as a project dependency yet. Missing inner metadata yields only outer instructions.
+  Orphan inner groups are appended rather than rejected; upstream tests preserve
+  this display behavior. Velon must validate evidence completeness and positions.
+  Returned account roles derive from transaction account metadata and do not prove
+  each CPI's actual signer privileges. Introspection does not verify execution,
+  finality, deployed code, or authorization meaning.
+
 ## Subscriptions maintainer study
 
 - Source: https://github.com/solana-foundation/subscriptions, revision

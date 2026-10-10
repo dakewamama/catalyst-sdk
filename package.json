@@ -13,6 +13,11 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@solana/addresses": "8.4.0",
+    "@solana/codecs-core": "8.4.0",
+    "@solana/keys": "8.4.0",
+    "@solana/transaction-messages": "8.4.0",
+    "@solana/transactions": "8.4.0",
     "bs58": "^6.0.0"
   }
 }
