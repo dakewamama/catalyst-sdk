@@ -2,7 +2,7 @@
 
 Catalyst translates typed native authority into ARM meaning. The Rust library is the
 semantic adapter boundary; the Bun/TypeScript package decodes lifecycle event bytes
-and verifies the wallet signing handoff. Event decoding alone does not establish authority.
+and handles reviewed wallet signing/submission. Event decoding alone does not establish authority.
 
 ## Semantic adapter ABI
 
@@ -26,7 +26,7 @@ the ABI does not authenticate RPC responses or establish freshness/finality.
 
 SourceRequirements lists native account keys and whether clock evidence is needed.
 Actions contain standard solana-instruction instructions, including native signer and
-writable account metadata. The SDK neither signs nor submits transactions. Declared Diff
+writable account metadata. The Rust adapter API neither signs nor submits transactions. Declared Diff
 is an adapter statement. `verify_transaction_diff` checks agreement with a successful
 simulation's recompiled state before returning that statement.
 
@@ -241,6 +241,37 @@ The wire fixture comes from Cataloger's native revoke simulation tests at
 with a local test key. No chain transaction is submitted by these tests.
 Kit 8.4.0 supplies the codecs, key import and signature verification.
 
+## Reviewed submission
+
+`signAndSubmitReviewedTransaction(rpc, reviewedBytes, signTransaction, config)`
+connects the verified signing handoff to an ordinary Kit RPC client. Supply the
+runtime simulation's cluster genesis hash, observation slot as `minContextSlot`,
+and replacement blockhash/last-valid block height as `lifetime`. Heights and slots
+must be parsed losslessly into bigint. The lifetime blockhash must match the reviewed
+message. The wallet callback must be sign-only.
+
+The helper checks cluster identity, block height and blockhash validity before
+requesting a signature and again afterward. It verifies the unchanged signed message,
+then submits those exact bytes with preflight enabled and the observation slot floor.
+Finalized commitment is selected explicitly; Kit omits it on the wire because it is
+the RPC server default. It never replaces the blockhash or requests another signature.
+
+`status: "submitted"` means the RPC accepted the request and returned the expected
+signature. `status: "unknown"` means the send response failed or returned a different
+signature. Both results retain `signature` and Base64 `signedTransaction`; the latter
+can be passed as `signed_transaction` to the runtime's finalized verification endpoint.
+An unknown response may still have reached the chain. Inspect that same signature
+before considering another transaction. Failures before submission reject the promise.
+
+Neither status means confirmed or finalized. The runtime must still reobserve,
+recompile and retain verification before reporting success. These checks establish
+lifetime and cluster consistency, not fresh authority state or runtime attestation.
+The caller must retain the reviewed simulation/state version and invalidate the review
+when its authorization evidence changes. Account state can change after any RPC check.
+Browser review, wallet discovery and finalized verification polling remain integration
+work. Tests use the native revoke wire fixture, local keys and a local RPC test server;
+they submit no public-chain transaction.
+
 ## Checks
 
 ```sh
@@ -254,5 +285,5 @@ git diff --check
 ```
 
 The TypeScript public entry point remains index.ts. It exports decodeEvent, the event
-types, discriminators and signReviewedTransaction. The Rust public entry point is
+types, discriminators and the reviewed signing/submission helpers. The Rust public entry point is
 src/lib.rs. Source decisions and remaining work are recorded under docs/research.

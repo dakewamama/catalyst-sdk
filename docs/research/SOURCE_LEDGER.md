@@ -1,5 +1,26 @@
 # Source ledger
 
+## Reviewed transaction submission
+
+- Reuse: DEPEND on Kit RPC 8.4.0, same MIT source revision
+  `0a296c6ba8cd7e055f79364b64dbf01907172ea2` as the wallet codecs below.
+  TARGETED SOURCE: `rpc/src/{rpc,rpc-transport,rpc-default-config}.ts`,
+  `rpc-api/src/{getGenesisHash,getBlockHeight,isBlockhashValid,sendTransaction}.ts`,
+  `rpc-transformers/src/request-transformer-default-commitment-internal.ts`,
+  and existing transaction signature/wire APIs. No source copied.
+- Official [sendTransaction](https://solana.com/docs/rpc/http/sendtransaction),
+  [getBlockHeight](https://solana.com/docs/rpc/http/getblockheight) and
+  [isBlockhashValid](https://solana.com/docs/rpc/http/isblockhashvalid) define
+  acceptance, expiry and minimum context semantics. Acceptance is not finality.
+- Kit removes an explicit finalized commitment from request options because it is
+  the server default. The HTTP test checks actual emitted requests, including native
+  preflight and minimum slot, rather than expecting our input options verbatim.
+- EXECUTED LOCALLY: real Kit HTTP transport and WebCrypto signing of the existing
+  revoke fixture with substituted test keys. Expiry across signing, cluster changes,
+  malformed/provider failures, unsigned/altered messages and uncertain submission
+  retain fail-closed behavior. Lost responses retain the signature and signed bytes
+  for subsequent finalized verification. No public-chain submission or new RPC layer.
+
 ## Wallet signing and transaction introspection
 
 - Source: https://github.com/anza-xyz/kit, tag `v8.4.0`, revision

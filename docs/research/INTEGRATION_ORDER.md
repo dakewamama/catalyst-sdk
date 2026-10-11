@@ -8,7 +8,11 @@ ARM represents its meaning. External packages supply mechanics at those boundari
 - Official SPL, Token-2022 and Subscriptions Rust clients already decode state and
   construct native actions. Mollusk already executes native adapter conformance tests.
 - The runtime builds and simulates SPL revoke, checks its semantic Diff and exposes
-  the reviewed unsigned transaction. `src/wallet.ts` verifies the sign-only response.
+  the reviewed unsigned transaction. `src/wallet.ts` verifies the sign-only response;
+  `src/submit.ts` checks cluster/lifetime around signing and submits through Kit.
+  Unknown send responses retain the signature and exact bytes for verification.
+- The runtime retains finalized revoke receipts and replays their linked snapshots
+  and semantic Diff without RPC. Historical verification is not current authority.
 - Pull, Quasar and Microscope have forks under `dakewamama`. Fork creation alone
   establishes no execution, reliability or integration guarantee.
 - Public deployment captures remain Incomplete without the required runtime witness.
@@ -18,8 +22,8 @@ ARM represents its meaning. External packages supply mechanics at those boundari
 
 | Order | Existing boundary | Reuse | Required proof |
 | --- | --- | --- | --- |
-| 1 | Runtime revoke endpoint → SDK → wallet | Kit codecs/crypto; Pull approval presentation pattern | Sign-only wallet returns the reviewed message; required signatures verify; expired evidence forces a fresh review. Browser wiring remains required. |
-| 2 | Submitted signature → finalized observation → Catalyst recompilation | Kit RPC and transaction-introspection 8.4.0 | Exact submitted message matches the observed transaction; execution succeeded; finalized account evidence recompiles to the expected Diff. Missing runtime evidence remains Incomplete. |
+| 1 | Runtime revoke endpoint → SDK → wallet | Kit codecs/crypto/RPC; Pull approval presentation pattern | SDK signing/submission checks message, signatures, cluster and lifetime. Browser wiring and invalidating changed authorization evidence remain required. |
+| 2 | Submitted signature → finalized observation → Catalyst recompilation | Runtime's official RPC client; Kit submission | Runtime verifies canonical revoke, finalized receipt and later account evidence, then retains replayable verification. Browser verification polling remains required. Missing runtime evidence remains Incomplete. |
 | 3 | Runtime journal/checkpoint → restart and repair | Microscope consumption/checkpoint pattern; existing Carbon/Yellowstone interfaces where needed | A crash before durable processing replays; duplicates are idempotent; two transactions in one slot survive; gaps remain visible until repaired. |
 | 4 | Known deployment → schema reference | Program Metadata, @solana/idl, Solana Verify; Codama-generated clients | Bind retrieved schema/build evidence to a known deployment and revision. Discovery never enables an unknown semantic adapter. |
 | 5 | Catalyst native adapter → ARM → native action | Official Squads V4 client, then Swig client under their source gates | Native fixtures, administrative/direct separation, exact constraint preservation, control/recompile agreement. Unsupported if a constraint cannot be enforced. |
