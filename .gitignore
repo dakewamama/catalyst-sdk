@@ -33,3 +33,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# AGPL-3.0 program fetched by `bun run fixture:squads`
+/tests/fixtures/squads-v4-mainnet.so

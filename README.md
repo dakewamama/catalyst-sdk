@@ -214,6 +214,30 @@ Native global authority revoke, plan-edit actions and sponsor subscription recov
 are not exposed. All three delegation kinds have native fixtures, ARM goldens and
 native control/Diff/recompilation tests.
 
+## Squads V4 spending limits
+
+`squads::SpendingLimitAdapter` supports token spending limits on controlled multisigs
+for the exact mainnet program payload named in `squads.rs`. One limit compiles to one
+Spend authorization shared by its listed members, scoped to the vault, the mint, the
+amount per period and the allowed recipients, plus a separate administrative
+RevokeAuthority for the multisig's config authority. Limit members are not multisig
+members: membership, voting or approval rights never become Spend here.
+
+The stored remainder is reported as observed with its period start. Once that period
+has passed the program will restore the full amount on the next use, so ARM reports
+availability as unknown instead of guessing the reset. An allowance is not a balance;
+the retained mainnet vault holds less than its members are permitted to spend.
+
+The multisig is read in full and must derive the limit's parent address; a parent the
+program would refuse yields no authority.
+
+Revoke returns the native removal signed by the config authority. Autonomous
+multisigs, where limits change by member vote, and native SOL limits return
+`UnsupportedOperation`: a voting threshold is not one signer, and the lamport path has
+no executed fixture. Proposals, vault transactions, batches, time locks and member
+permissions are not interpreted. No live deployment support is claimed until Cataloger
+holds executable and runtime evidence for this program.
+
 ## Wallet handoff
 
 `signReviewedTransaction(reviewedBytes, signTransaction)` accepts the legacy wire
@@ -275,6 +299,7 @@ they submit no public-chain transaction.
 ## Checks
 
 ```sh
+bun run fixture:squads
 cargo fmt --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
@@ -287,3 +312,6 @@ git diff --check
 The TypeScript public entry point remains index.ts. It exports decodeEvent, the event
 types, discriminators and the reviewed signing/submission helpers. The Rust public entry point is
 src/lib.rs. Source decisions and remaining work are recorded under docs/research.
+
+`fixture:squads` fetches the deployed Squads V4 program and verifies its pinned SHA256.
+The AGPL-3.0 binary is Git-ignored and read only at test runtime.

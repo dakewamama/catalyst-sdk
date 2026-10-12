@@ -6,7 +6,8 @@
   "description": "event decoder program",
   "license": "MIT",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fixture:squads": "bun scripts/squads-fixture.ts"
   },
   "devDependencies": {
     "@solana/rpc-types": "8.4.0",
